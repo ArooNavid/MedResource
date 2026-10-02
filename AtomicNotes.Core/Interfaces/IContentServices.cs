@@ -128,3 +128,8 @@ public interface IVaultExportService
 {
     Task<(byte[] Content, string FileName)> ExportMarkdownZipAsync(CancellationToken ct = default);
 }
+
+public interface IVaultImportService
+{
+    Task<VaultImportResult> ImportMarkdownZipAsync(Stream zipStream, CancellationToken ct = default);
+}
