@@ -52,6 +52,7 @@ builder.Services.AddSingleton<INoteMarkdownService, NoteMarkdownService>();
 builder.Services.AddSingleton<VaultWatcherService>();
 builder.Services.AddSingleton<IVaultExportService, VaultExportService>();
 builder.Services.AddSingleton<IVaultImportService, VaultImportService>();
+builder.Services.AddSingleton<IVaultStatsService, VaultStatsService>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -580,6 +581,8 @@ app.MapGet("/api/vault/export", async (IVaultExportService export) =>
         return Results.BadRequest(new { error = ex.Message });
     }
 }).RequireAuthorization();
+
+app.MapGet("/api/vault/stats", async (IVaultStatsService stats) => Results.Ok(await stats.GetAsync())).RequireAuthorization();
 
 app.MapGet("/api/backups", async (IBackupService backups) => Results.Ok(await backups.ListBackupsAsync())).RequireAuthorization();
 
