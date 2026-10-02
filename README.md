@@ -28,6 +28,7 @@
 | 40 | گزارش پیوندهای شکسته (`GET /api/links/unresolved`) |
 | 41 | ساخت یادداشت از هدف پیوند (`POST /api/links/create-target`) |
 | 42 | دانلود zip خزانه (`GET /api/vault/export`) |
+| 43 | هم‌نام خودکار فایل با عنوان (تنظیمات `AutoSyncRelPathOnTitleChange`) |
 
 نسخهٔ پایگاه‌داده: **۱۱** (جدول `note_aliases`).
 

@@ -221,6 +221,10 @@ public sealed class NoteService : INoteService
         await _links.RebuildLinksForNoteAsync((int)id, content ?? "", ct);
         await _links.ResolveLinksForTitleAsync(title, (int)id, ct);
         WriteFile(existing.RelPath, title, existing.Depth, tagList, aliasList, content ?? "");
+        if (_settings.Current.AutoSyncRelPathOnTitleChange
+            && !string.Equals(oldTitle, title, StringComparison.OrdinalIgnoreCase))
+            return await SyncRelPathToTitleAsync(id, ct);
+
         return (await GetAsync(id, ct))!;
     }
 

@@ -1133,6 +1133,7 @@ async function loadSettings() {
         </select>
       </label>
       <label class="row"><input name="notificationsEnabled" type="checkbox" ${data.notificationsEnabled ? "checked" : ""} /> اعلان‌ها</label>
+      <label class="row"><input name="autoSyncRelPathOnTitleChange" type="checkbox" ${data.autoSyncRelPathOnTitleChange ? "checked" : ""} /> هم‌نام خودکار فایل با عنوان هنگام ذخیره</label>
       <p class="muted">پایگاه‌داده: ${escapeHtml(data.databasePath)}<br>فایل تنظیمات: ${escapeHtml(data.settingsFilePath)}</p>
       <p id="settings-error" class="error" hidden></p>
       <div class="row"><button class="primary" type="submit">ذخیره</button></div>
@@ -1149,7 +1150,8 @@ async function loadSettings() {
           backupPath: form.get("backupPath"),
           backupIntervalHours: Number(form.get("backupIntervalHours")),
           theme: form.get("theme"),
-          notificationsEnabled: form.get("notificationsEnabled") === "on"
+          notificationsEnabled: form.get("notificationsEnabled") === "on",
+          autoSyncRelPathOnTitleChange: form.get("autoSyncRelPathOnTitleChange") === "on"
         }
       });
       state.notifications = form.get("notificationsEnabled") === "on";

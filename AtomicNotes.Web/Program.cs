@@ -517,6 +517,7 @@ app.MapGet("/api/settings", (ISettingsService settingsService) =>
         current.BackupIntervalHours,
         current.Theme,
         current.NotificationsEnabled,
+        current.AutoSyncRelPathOnTitleChange,
         current.LastAutoBackupAt,
         settingsFilePath = settingsService.SettingsFilePath
     });
@@ -538,6 +539,7 @@ app.MapPut("/api/settings", async (SettingsBody body, ISettingsService settingsS
         BackupIntervalHours = body.BackupIntervalHours,
         Theme = string.IsNullOrWhiteSpace(body.Theme) ? "System" : body.Theme,
         NotificationsEnabled = body.NotificationsEnabled,
+        AutoSyncRelPathOnTitleChange = body.AutoSyncRelPathOnTitleChange,
         LastAutoBackupAt = current.LastAutoBackupAt
     });
     Directory.CreateDirectory(settingsService.Current.VaultPath);
@@ -657,5 +659,5 @@ internal sealed record PinBody(bool Pinned);
 
 internal sealed record ParentBody(long? ParentNoteId);
 internal sealed record ColorBody(string? ColorHex);
-internal sealed record SettingsBody(string? VaultPath, string? BackupPath, int BackupIntervalHours, string? Theme, bool NotificationsEnabled);
+internal sealed record SettingsBody(string? VaultPath, string? BackupPath, int BackupIntervalHours, string? Theme, bool NotificationsEnabled, bool AutoSyncRelPathOnTitleChange);
 internal sealed record RestoreBody(string? FilePath);

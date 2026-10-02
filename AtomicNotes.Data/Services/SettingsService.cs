@@ -100,6 +100,7 @@ public sealed class SettingsService : ISettingsService
         BackupIntervalHours = source.BackupIntervalHours,
         Theme = source.Theme,
         NotificationsEnabled = source.NotificationsEnabled,
+        AutoSyncRelPathOnTitleChange = source.AutoSyncRelPathOnTitleChange,
         LastAutoBackupAt = source.LastAutoBackupAt
     };
 }
