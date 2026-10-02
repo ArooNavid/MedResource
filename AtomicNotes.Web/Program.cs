@@ -230,6 +230,18 @@ app.MapPut("/api/notes/{id:long}/pin", async (long id, PinBody body, INoteServic
     }
 }).RequireAuthorization();
 
+app.MapPost("/api/notes/{id:long}/sync-path", async (long id, INoteService notes) =>
+{
+    try
+    {
+        return Results.Ok(await notes.SyncRelPathToTitleAsync(id));
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
 app.MapPut("/api/notes/{id:long}/parent", async (long id, ParentBody body, INoteService notes) =>
 {
     try
