@@ -618,6 +618,8 @@ document.querySelectorAll(".side nav button").forEach((button) => {
 $("logout").onclick = async () => {
   await api("/api/auth/logout", { method: "POST" });
   state.user = null;
+  state.view = "dashboard";
+  state.current = null;
   showAuth();
 };
 
