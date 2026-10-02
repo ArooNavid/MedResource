@@ -45,6 +45,7 @@ builder.Services.AddSingleton<AuthService>();
 builder.Services.AddSingleton<IObsidianSyncService, ObsidianSyncService>();
 builder.Services.AddSingleton<ITemplateService, TemplateService>();
 builder.Services.AddSingleton<IDailyNoteService, DailyNoteService>();
+builder.Services.AddSingleton<ITaskService, TaskService>();
 builder.Services.AddSingleton<VaultWatcherService>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -247,6 +248,22 @@ app.MapPost("/api/notes/{id:long}/template", async (long id, ApplyTemplateBody b
     try
     {
         var note = await templates.ApplyAsync(id, UserId(http.User), body.Name ?? "");
+        return Results.Ok(note);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
+app.MapGet("/api/tasks", async (bool? open, ITaskService tasks) =>
+    Results.Ok(await tasks.ListAsync(open))).RequireAuthorization();
+
+app.MapPost("/api/tasks/toggle", async (TaskToggleBody body, HttpContext http, ITaskService tasks) =>
+{
+    try
+    {
+        var note = await tasks.ToggleAsync(body.NoteId, UserId(http.User), body.LineIndex, body.Done);
         return Results.Ok(note);
     }
     catch (InvalidOperationException ex)
@@ -460,6 +477,8 @@ internal sealed record DailyRequest(string? Date);
 internal sealed record TemplateBody(string? Title, string? Content, string[]? Tags);
 
 internal sealed record ApplyTemplateBody(string? Name);
+
+internal sealed record TaskToggleBody(long NoteId, int LineIndex, bool Done);
 internal sealed record ColorBody(string? ColorHex);
 internal sealed record SettingsBody(string? VaultPath, string? BackupPath, int BackupIntervalHours, string? Theme, bool NotificationsEnabled);
 internal sealed record RestoreBody(string? FilePath);
