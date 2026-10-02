@@ -141,6 +141,7 @@ app.MapGet("/api/dashboard", async (HttpContext http, IUserRepository users, IAc
     var to = DateTime.UtcNow.AddDays(1);
     await dashboard.LoadAsync(from, to);
     var recent = await notes.RecentAsync(8);
+    var pinned = await notes.ListPinnedAsync();
     return Results.Ok(new
     {
         isAdmin = dashboard.IsAdmin,
@@ -148,6 +149,7 @@ app.MapGet("/api/dashboard", async (HttpContext http, IUserRepository users, IAc
         tehranDate = clock.TehranDateString,
         today = dashboard.OwnToday,
         comparison = dashboard.Comparison,
+        pinned,
         recent
     });
 }).RequireAuthorization();
@@ -197,6 +199,18 @@ app.MapPost("/api/notes", async (NoteBody body, HttpContext http, INoteService n
     {
         var note = await notes.CreateAsync(UserId(http.User), body.Title ?? "", body.Content ?? "", body.ParentNoteId, body.Tags ?? Array.Empty<string>());
         return Results.Ok(note);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
+app.MapPut("/api/notes/{id:long}/pin", async (long id, PinBody body, INoteService notes) =>
+{
+    try
+    {
+        return Results.Ok(await notes.SetPinnedAsync(id, body.Pinned));
     }
     catch (InvalidOperationException ex)
     {
@@ -519,6 +533,8 @@ internal sealed record ApplyTemplateBody(string? Name);
 internal sealed record TaskToggleBody(long NoteId, int LineIndex, bool Done);
 
 internal sealed record PreviewBody(string? Content, long? NoteId);
+
+internal sealed record PinBody(bool Pinned);
 internal sealed record ColorBody(string? ColorHex);
 internal sealed record SettingsBody(string? VaultPath, string? BackupPath, int BackupIntervalHours, string? Theme, bool NotificationsEnabled);
 internal sealed record RestoreBody(string? FilePath);

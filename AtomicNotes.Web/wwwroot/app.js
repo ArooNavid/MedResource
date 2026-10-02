@@ -132,6 +132,12 @@ async function loadDashboard() {
       <article class="card"><span>تاریخ تهران</span><strong style="font-size:18px">${escapeHtml(data.tehranDate)}</strong></article>
       ${comparison}
       <div class="card" style="grid-column: 1 / -1">
+        <h3>سنجاق‌شده</h3>
+        <div class="list" style="margin-top:10px">
+          ${(data.pinned || []).map((note) => `<button class="note-item" data-open="${note.id}"><span class="pill">سنجاق</span> ${escapeHtml(note.title)}</button>`).join("") || `<p class="muted">یادداشت سنجاق‌شده‌ای نیست.</p>`}
+        </div>
+      </div>
+      <div class="card" style="grid-column: 1 / -1">
         <h3>یادداشت‌های تازه</h3>
         <div class="list" style="margin-top:10px">
           ${(data.recent || []).map((note) => `<button class="note-item" data-open="${note.id}">${escapeHtml(note.title)}</button>`).join("") || `<p class="muted">هنوز یادداشتی نیست.</p>`}
@@ -193,7 +199,7 @@ function renderNotes() {
         </div>
         <div class="list" id="note-list">
           ${visible.map((note) => `<button class="note-item ${state.current?.note.id === note.id ? "active" : ""}" data-id="${note.id}">
-            <strong>${escapeHtml(note.title)}</strong>
+            <strong>${note.pinned ? `<span class="pill">سنجاق</span> ` : ""}${escapeHtml(note.title)}</strong>
             <div class="muted">عمق ${note.depth}</div>
           </button>`).join("") || `<p class="muted">یادداشتی با این فیلتر نیست.</p>`}
         </div>
@@ -205,6 +211,7 @@ function renderNotes() {
             ${(state.templates || []).map((template) => `<option value="${escapeHtml(template.name)}">${escapeHtml(template.title)}</option>`).join("")}
           </select>
           <button class="ghost" type="button" id="apply-template" ${state.current?.note?.id ? "" : "disabled"}>درج قالب</button>
+          <button class="ghost" type="button" id="toggle-pin" ${state.current?.note?.id ? "" : "disabled"}>${state.current?.note?.pinned ? "برداشتن سنجاق" : "سنجاق"}</button>
           <button class="ghost" type="button" id="toggle-preview" ${state.current ? "" : "disabled"}>${state.showPreview ? "ویرایش" : "پیش‌نمایش"}</button>
           <button class="ghost" type="button" id="export-md" ${state.current?.note?.id ? "" : "disabled"}>فایل .md</button>
           <button class="ghost" type="button" id="export-pdf" ${state.current ? "" : "disabled"}>PDF</button>
@@ -227,6 +234,15 @@ function renderNotes() {
   $("view-notes").querySelectorAll("[data-id]").forEach((button) => { button.onclick = () => openNote(button.dataset.id); });
   $("editor").onsubmit = saveNote;
   $("apply-template").onclick = applyTemplate;
+  $("toggle-pin").onclick = async () => {
+    if (!state.current?.note?.id) return;
+    const pinned = !state.current.note.pinned;
+    const saved = await api(`/api/notes/${state.current.note.id}/pin`, { method: "PUT", body: { pinned } });
+    toast(pinned ? "یادداشت سنجاق شد." : "سنجاق برداشته شد.");
+    state.current.note = saved;
+    await loadNotes();
+    await openNote(saved.id);
+  };
   $("toggle-preview").onclick = () => { state.showPreview = !state.showPreview; renderNotes(); };
   $("note-content").oninput = schedulePreview;
   if (state.showPreview) refreshPreview();
