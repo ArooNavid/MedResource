@@ -132,6 +132,22 @@ th, td { text-align: right; padding: 8px 6px; border-bottom: 1px solid var(--lin
 .dangling { color: var(--muted); text-decoration: line-through; }
 #graph-canvas { width: 100%; height: 68vh; background: #102421; border-radius: 18px; display: block; }
 .editor-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 8px; }
+.journal-weekdays, .journal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.journal-weekdays { margin-bottom: 8px; color: var(--muted); font-size: 13px; text-align: center; }
+.journal-cell {
+  min-height: 72px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 14px;
+  padding: 8px 10px;
+  display: grid;
+  align-content: space-between;
+  text-align: right;
+}
+.journal-cell strong { font-size: 18px; }
+.journal-cell.today { border-color: var(--teal); box-shadow: inset 0 0 0 1px var(--teal); }
+.journal-cell.has-note { background: #f3faf8; }
+.journal-cell.pad { visibility: hidden; pointer-events: none; border: none; background: transparent; }
 @media (max-width: 980px) {
   .shell { grid-template-columns: 1fr; }
   .side { position: sticky; top: 0; z-index: 2; }

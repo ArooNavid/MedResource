@@ -160,4 +160,56 @@ public sealed class DailyNoteTests
         Assert.Equal($"daily/{database.Clock.TehranDateString}.md", opened.RelPath);
         Assert.True(opened.Created);
     }
+
+    [Fact]
+    public async Task GetMonth_marks_days_with_notes_and_starts_week_on_saturday()
+    {
+        using var database = new ActivityDatabase();
+        var root = Path.Combine(Path.GetTempPath(), "atomicnotes-journal-" + Guid.NewGuid().ToString("N"));
+        var vault = Path.Combine(root, "vault");
+        Directory.CreateDirectory(vault);
+        var settings = new SettingsService(Path.Combine(root, "settings.json"));
+        settings.Load();
+        settings.Save(new AppSettings
+        {
+            VaultPath = vault,
+            BackupPath = Path.Combine(root, "backups"),
+            DatabasePath = database.Factory.DatabasePath,
+            BackupIntervalHours = 24,
+            Theme = "System",
+            NotificationsEnabled = true
+        });
+        var owner = await database.Users.CreateAsync(new User
+        {
+            Username = "journal",
+            DisplayName = "journal",
+            PasswordHash = "x",
+            Salt = "y",
+            Role = UserRole.User
+        });
+        var notes = new NoteService(database.Factory, settings, new TagService(database.Factory), new NoteLinkService(database.Factory), database.Stats, new VaultWriteGuard());
+        var daily = new DailyNoteService(settings, database.Clock, notes, new TemplateService(settings, database.Clock, notes, new TagService(database.Factory), new VaultWriteGuard()));
+
+        await daily.OpenAsync(owner, "2026-10-02");
+        Directory.CreateDirectory(Path.Combine(vault, "daily"));
+        await File.WriteAllTextAsync(Path.Combine(vault, "daily", "2026-10-05.md"), """
+            ---
+            title: 2026-10-05
+            depth: 1
+            tags: []
+            ---
+
+            فقط روی دیسک
+            """);
+
+        var month = await daily.GetMonthAsync(2026, 10);
+        Assert.Equal(5, month.LeadingPadding);
+        Assert.Equal(31, month.Days.Count);
+        Assert.True(month.Days.Single(day => day.TehranDate == "2026-10-02").HasNote);
+        Assert.True(month.Days.Single(day => day.TehranDate == "2026-10-05").HasNote);
+        Assert.False(month.Days.Single(day => day.TehranDate == "2026-10-03").HasNote);
+
+        var badMonth = await Assert.ThrowsAsync<InvalidOperationException>(() => daily.GetMonthAsync(2026, 13));
+        Assert.Equal("ماه باید بین ۱ تا ۱۲ باشد.", badMonth.Message);
+    }
 }

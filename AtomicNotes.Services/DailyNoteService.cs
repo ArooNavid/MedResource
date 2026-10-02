@@ -61,4 +61,35 @@ public sealed class DailyNoteService : IDailyNoteService
         var created = await _notes.CreateAtPathAsync(ownerUserId, date, content, rel, tags, ct);
         return new DailyNoteResult(created, true, date, rel);
     }
+
+    public async Task<DailyJournalMonth> GetMonthAsync(int year, int month, CancellationToken ct = default)
+    {
+        if (month is < 1 or > 12)
+            throw new InvalidOperationException("ماه باید بین ۱ تا ۱۲ باشد.");
+        if (year is < 2000 or > 2100)
+            throw new InvalidOperationException("سال معتبر نیست.");
+
+        var first = new DateTime(year, month, 1);
+        var daysInMonth = DateTime.DaysInMonth(year, month);
+        var prefix = $"{AppConstants.DailyNotesFolder}/{year:D4}-{month:D2}-";
+        var notes = (await _notes.ListAsync(ct))
+            .Where(note => note.RelPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(
+                note => Path.GetFileNameWithoutExtension(note.RelPath.Replace('\\', '/')),
+                note => note,
+                StringComparer.Ordinal);
+
+        var folder = Path.Combine(_settings.Current.VaultPath, AppConstants.DailyNotesFolder);
+        var days = new List<DailyJournalDay>(daysInMonth);
+        for (var day = 1; day <= daysInMonth; day++)
+        {
+            var date = new DateTime(year, month, day).ToString(AppConstants.TehranDateFormat, CultureInfo.InvariantCulture);
+            notes.TryGetValue(date, out var note);
+            var onDisk = Directory.Exists(folder) && File.Exists(Path.Combine(folder, date + AppConstants.MarkdownExtension));
+            days.Add(new DailyJournalDay(date, note is not null || onDisk, note?.Id));
+        }
+
+        var leading = ((int)first.DayOfWeek - (int)DayOfWeek.Saturday + 7) % 7;
+        return new DailyJournalMonth(year, month, _clock.TehranDateString, leading, days);
+    }
 }
