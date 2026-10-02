@@ -278,6 +278,12 @@ public sealed class NoteService : INoteService
         File.WriteAllText(full, MarkdownFiles.Compose(title, depth, tags, body));
     }
 
+    public async Task<string> AllocateRelPathAsync(string title, long? parentNoteId, CancellationToken ct = default)
+    {
+        var parent = parentNoteId is null ? null : await GetAsync(parentNoteId.Value, ct);
+        return await UniqueRelPathAsync(title, parent, ct);
+    }
+
     private async Task<string> UniqueRelPathAsync(string title, Note? parent, CancellationToken ct)
     {
         var name = MarkdownFiles.SanitizeFileName(title) + AppConstants.MarkdownExtension;
