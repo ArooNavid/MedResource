@@ -1071,6 +1071,11 @@ function renderImport() {
 async function loadBackups() {
   const backups = await api("/api/backups");
   $("view-backups").innerHTML = `
+    <div class="card" style="margin-bottom:16px">
+      <h3>خروجی مارک‌داون</h3>
+      <p class="muted">همهٔ فایل‌های .md خزانه (به‌جز پوشهٔ staging) در یک فایل zip.</p>
+      <button class="primary" type="button" id="export-vault-zip" style="margin-top:10px">دانلود zip خزانه</button>
+    </div>
     <div class="card">
       <div class="editor-head">
         <h3>پشتیبان‌های موجود</h3>
@@ -1090,6 +1095,7 @@ async function loadBackups() {
         </article>`).join("") || `<p class="muted">هیچ پشتیبانی یافت نشد.</p>`}
       </div>
     </div>`;
+  $("export-vault-zip").onclick = () => { window.location = "/api/vault/export"; };
   $("reload-backups").onclick = loadBackups;
   $("create-backup").onclick = async () => {
     toast("در حال ایجاد پشتیبان…");

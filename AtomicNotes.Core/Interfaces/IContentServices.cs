@@ -123,3 +123,8 @@ public interface IObsidianSyncService
     Task PullFileAsync(string fullPath, CancellationToken ct = default);
     Task OnFileMissingAsync(string fullPath, CancellationToken ct = default);
 }
+
+public interface IVaultExportService
+{
+    Task<(byte[] Content, string FileName)> ExportMarkdownZipAsync(CancellationToken ct = default);
+}
