@@ -44,7 +44,7 @@ public sealed class ObsidianSyncService : IObsidianSyncService
     public async Task<SyncReport> SyncAllAsync(CancellationToken ct = default)
     {
         var vault = EnsureVault();
-        var notes = (await _notes.ListAsync(ct)).ToList();
+        var notes = (await _notes.ListAsync(ct: ct)).ToList();
         var tagsByNote = await LoadTagsAsync(ct);
         var syncRows = await LoadSyncAsync(ct);
         var files = EnumerateMarkdown(vault);
@@ -84,7 +84,7 @@ public sealed class ObsidianSyncService : IObsidianSyncService
             if (seen.Contains(rel))
                 continue;
             await _notes.UpsertFromFileAsync(full, ct);
-            var created = (await _notes.ListAsync(ct)).First(item => string.Equals(item.RelPath, rel, StringComparison.OrdinalIgnoreCase));
+            var created = (await _notes.ListAsync(ct: ct)).First(item => string.Equals(item.RelPath, rel, StringComparison.OrdinalIgnoreCase));
             var createdTags = (await _tags.GetTagsForNoteAsync((int)created.Id, ct)).Select(tag => tag.Name).ToArray();
             var createdAliases = (await _aliases.GetAliasesForNoteAsync((int)created.Id, ct)).ToArray();
             await SaveSyncAsync(created.Id, HashFile(full), ProjectionHash(created, createdTags, createdAliases), ct);
@@ -102,7 +102,7 @@ public sealed class ObsidianSyncService : IObsidianSyncService
             return;
         await _notes.UpsertFromFileAsync(fullPath, ct);
         var rel = Relative(fullPath);
-        var note = (await _notes.ListAsync(ct)).FirstOrDefault(item => string.Equals(item.RelPath, rel, StringComparison.OrdinalIgnoreCase));
+        var note = (await _notes.ListAsync(ct: ct)).FirstOrDefault(item => string.Equals(item.RelPath, rel, StringComparison.OrdinalIgnoreCase));
         if (note is null)
             return;
         var tags = (await _tags.GetTagsForNoteAsync((int)note.Id, ct)).Select(tag => tag.Name).ToArray();
@@ -115,7 +115,7 @@ public sealed class ObsidianSyncService : IObsidianSyncService
         if (!ShouldTouch(fullPath))
             return;
         var rel = Relative(fullPath);
-        var note = (await _notes.ListAsync(ct)).FirstOrDefault(item => string.Equals(item.RelPath, rel, StringComparison.OrdinalIgnoreCase));
+        var note = (await _notes.ListAsync(ct: ct)).FirstOrDefault(item => string.Equals(item.RelPath, rel, StringComparison.OrdinalIgnoreCase));
         if (note is null)
             return;
         var tags = (await _tags.GetTagsForNoteAsync((int)note.Id, ct)).Select(tag => tag.Name).ToArray();

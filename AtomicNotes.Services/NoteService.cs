@@ -33,14 +33,30 @@ public sealed class NoteService : INoteService
         _guard = guard;
     }
 
-    public async Task<IReadOnlyList<Note>> ListAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<Note>> ListAsync(
+        NoteListSort sort = NoteListSort.Updated,
+        bool ascending = false,
+        CancellationToken ct = default)
     {
         using var connection = _factory.Create();
         var rows = await connection.QueryAsync<Note>(
             new CommandDefinition(
-                SelectOne + " WHERE deleted_at IS NULL ORDER BY pinned DESC, updated_at DESC",
+                SelectOne + " WHERE deleted_at IS NULL ORDER BY " + BuildListOrder(sort, ascending),
                 cancellationToken: ct));
         return rows.ToList();
+    }
+
+    private static string BuildListOrder(NoteListSort sort, bool ascending)
+    {
+        var dir = ascending ? "ASC" : "DESC";
+        var tail = sort switch
+        {
+            NoteListSort.Title => $"title COLLATE NOCASE {dir}, updated_at DESC",
+            NoteListSort.Created => $"created_at {dir}, title COLLATE NOCASE ASC",
+            NoteListSort.Depth => $"depth {dir}, title COLLATE NOCASE ASC",
+            _ => $"updated_at {dir}, title COLLATE NOCASE ASC"
+        };
+        return "pinned DESC, " + tail;
     }
 
     public async Task<Note?> GetRandomAsync(CancellationToken ct = default)

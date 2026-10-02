@@ -11,7 +11,9 @@ const state = {
   sim: null,
   journal: null,
   taskFilter: "open",
-  showPreview: false
+  showPreview: false,
+  noteSort: "updated",
+  noteOrder: "desc"
 };
 
 let previewTimer;
@@ -166,7 +168,11 @@ async function loadDashboard() {
 }
 
 async function loadNotes() {
-  const query = state.tagFilter.length ? `?tagIds=${state.tagFilter.join(",")}` : "";
+  const params = new URLSearchParams();
+  if (state.tagFilter.length) params.set("tagIds", state.tagFilter.join(","));
+  if (state.noteSort) params.set("sort", state.noteSort);
+  if (state.noteOrder) params.set("order", state.noteOrder);
+  const query = params.toString() ? `?${params.toString()}` : "";
   state.notes = await api("/api/notes" + query);
   state.templates = await api("/api/templates");
   const currentId = state.current?.note?.id;
@@ -207,8 +213,16 @@ function renderNotes() {
   $("view-notes").innerHTML = `
     <div class="split">
       <div>
-        <div class="row" style="margin-bottom:8px">
+        <div class="row" style="margin-bottom:8px;flex-wrap:wrap;gap:8px">
           <input id="note-filter" placeholder="فیلتر عنوان" value="${escapeHtml(filter)}" />
+          <select id="note-sort" aria-label="مرتب‌سازی">
+            <option value="updated:desc" ${state.noteSort === "updated" && state.noteOrder === "desc" ? "selected" : ""}>تازه‌ترین</option>
+            <option value="updated:asc" ${state.noteSort === "updated" && state.noteOrder === "asc" ? "selected" : ""}>قدیمی‌ترین</option>
+            <option value="title:asc" ${state.noteSort === "title" && state.noteOrder === "asc" ? "selected" : ""}>عنوان الفبا</option>
+            <option value="title:desc" ${state.noteSort === "title" && state.noteOrder === "desc" ? "selected" : ""}>عنوان معکوس</option>
+            <option value="created:desc" ${state.noteSort === "created" && state.noteOrder === "desc" ? "selected" : ""}>تاریخ ساخت</option>
+            <option value="depth:asc" ${state.noteSort === "depth" && state.noteOrder === "asc" ? "selected" : ""}>عمق درخت</option>
+          </select>
           <button class="primary" id="new-note">جدید</button>
           <button class="ghost" type="button" id="import-md">ورود .md</button>
           <input id="import-md-file" type="file" accept=".md,text/markdown" hidden />
@@ -255,6 +269,12 @@ function renderNotes() {
       <aside class="card" id="links-panel">${linksHtml()}</aside>
     </div>`;
   $("note-filter").oninput = () => renderNotes();
+  $("note-sort").onchange = async () => {
+    const [sort, order] = ($("note-sort").value || "updated:desc").split(":");
+    state.noteSort = sort;
+    state.noteOrder = order || "desc";
+    await loadNotes();
+  };
   $("note-parent")?.addEventListener("change", async () => {
     if (!state.current?.note?.id) return;
     const parentNoteId = $("note-parent").value ? Number($("note-parent").value) : null;

@@ -168,9 +168,9 @@ app.MapGet("/api/activity/report", async (long userId, HttpContext http, IActivi
     }
 }).RequireAuthorization();
 
-app.MapGet("/api/notes", async (string? tagIds, INoteService notes, ITagService tags) =>
+app.MapGet("/api/notes", async (string? tagIds, string? sort, string? order, INoteService notes, ITagService tags) =>
 {
-    var list = await notes.ListAsync();
+    var list = await notes.ListAsync(NoteListSortParser.ParseSort(sort), NoteListSortParser.ParseAscending(order));
     if (!string.IsNullOrWhiteSpace(tagIds))
     {
         var ids = tagIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
