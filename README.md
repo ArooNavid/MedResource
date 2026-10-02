@@ -26,6 +26,7 @@
 | 38 | خالی کردن سطل و بازیابی همه (`DELETE/POST /api/trash`) |
 | 39 | ادغام یادداشت (`POST /api/notes/{target}/merge/{source}`) |
 | 40 | گزارش پیوندهای شکسته (`GET /api/links/unresolved`) |
+| 41 | ساخت یادداشت از هدف پیوند (`POST /api/links/create-target`) |
 
 نسخهٔ پایگاه‌داده: **۱۱** (جدول `note_aliases`).
 
