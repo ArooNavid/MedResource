@@ -114,7 +114,7 @@ public sealed class NoteService : INoteService
         if (depth > AppConstants.MaxTreeDepth)
             throw new InvalidOperationException($"عمق درخت نمی‌تواند بیشتر از {AppConstants.MaxTreeDepth} باشد.");
 
-        var rel = await UniqueRelPathAsync(title, parent, ct);
+        var rel = await UniqueRelPathAsync(title, parent, excludeNoteId: null, ct);
         var now = DateTime.UtcNow.ToString("o");
         long id;
         using (var connection = _factory.Create())
@@ -317,6 +317,41 @@ public sealed class NoteService : INoteService
         return (await GetAsync(id, ct))!;
     }
 
+    public async Task<Note> SyncRelPathToTitleAsync(long id, CancellationToken ct = default)
+    {
+        var note = await RequireActiveAsync(id, ct);
+        var parent = note.ParentNoteId is null ? null : await RequireActiveAsync(note.ParentNoteId.Value, ct);
+        var newRel = await UniqueRelPathAsync(note.Title, parent, excludeNoteId: id, ct);
+        if (string.Equals(newRel, note.RelPath, StringComparison.OrdinalIgnoreCase))
+            return note;
+
+        var tagNames = (await _tags.GetTagsForNoteAsync((int)id, ct)).Select(tag => tag.Name);
+        var vault = _settings.Current.VaultPath;
+        var oldFull = Path.Combine(vault, note.RelPath.Replace('/', Path.DirectorySeparatorChar));
+        var newFull = Path.Combine(vault, newRel.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(newFull)!);
+        _guard.Suppress(oldFull);
+        _guard.Suppress(newFull);
+
+        if (File.Exists(oldFull))
+            File.Move(oldFull, newFull, overwrite: false);
+        else
+            WriteFile(newRel, note.Title, note.Depth, tagNames, note.Content);
+
+        var now = DateTime.UtcNow.ToString("o");
+        using var connection = _factory.Create();
+        await connection.ExecuteAsync(
+            new CommandDefinition(
+                "UPDATE notes SET rel_path = @Rel, updated_at = @Now WHERE id = @Id",
+                new { Id = id, Rel = newRel, Now = now },
+                cancellationToken: ct));
+
+        if (File.Exists(newFull))
+            WriteFile(newRel, note.Title, note.Depth, tagNames, note.Content);
+
+        return (await GetAsync(id, ct))!;
+    }
+
     public async Task<Note> DuplicateAsync(long id, long ownerUserId, CancellationToken ct = default)
     {
         var source = await RequireActiveAsync(id, ct);
@@ -424,10 +459,10 @@ public sealed class NoteService : INoteService
     public async Task<string> AllocateRelPathAsync(string title, long? parentNoteId, CancellationToken ct = default)
     {
         var parent = parentNoteId is null ? null : await RequireActiveAsync(parentNoteId.Value, ct);
-        return await UniqueRelPathAsync(title, parent, ct);
+        return await UniqueRelPathAsync(title, parent, excludeNoteId: null, ct);
     }
 
-    private async Task<string> UniqueRelPathAsync(string title, Note? parent, CancellationToken ct)
+    private async Task<string> UniqueRelPathAsync(string title, Note? parent, long? excludeNoteId, CancellationToken ct)
     {
         var name = MarkdownFiles.SanitizeFileName(title) + AppConstants.MarkdownExtension;
         var prefix = "";
@@ -443,7 +478,14 @@ public sealed class NoteService : INoteService
         var candidate = rel;
         var n = 2;
         while (await connection.ExecuteScalarAsync<long>(
-                   new CommandDefinition("SELECT COUNT(1) FROM notes WHERE rel_path = @Rel", new { Rel = candidate }, cancellationToken: ct)) > 0)
+                   new CommandDefinition(
+                       """
+                       SELECT COUNT(1) FROM notes
+                        WHERE rel_path = @Rel
+                          AND (@Exclude IS NULL OR id <> @Exclude)
+                       """,
+                       new { Rel = candidate, Exclude = excludeNoteId },
+                       cancellationToken: ct)) > 0)
         {
             candidate = string.IsNullOrEmpty(prefix)
                 ? $"{Path.GetFileNameWithoutExtension(name)}-{n}{AppConstants.MarkdownExtension}"

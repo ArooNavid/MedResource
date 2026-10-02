@@ -53,6 +53,7 @@ public interface INoteService
     Task<IReadOnlyList<Note>> ListPinnedAsync(CancellationToken ct = default);
     Task<Note> SetPinnedAsync(long id, bool pinned, CancellationToken ct = default);
     Task<Note> SetParentAsync(long id, long? parentNoteId, CancellationToken ct = default);
+    Task<Note> SyncRelPathToTitleAsync(long id, CancellationToken ct = default);
     Task<Note> DuplicateAsync(long id, long ownerUserId, CancellationToken ct = default);
 }
 
