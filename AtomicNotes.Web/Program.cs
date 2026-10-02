@@ -53,6 +53,7 @@ builder.Services.AddSingleton<VaultWatcherService>();
 builder.Services.AddSingleton<IVaultExportService, VaultExportService>();
 builder.Services.AddSingleton<IVaultImportService, VaultImportService>();
 builder.Services.AddSingleton<IVaultStatsService, VaultStatsService>();
+builder.Services.AddSingleton<IVaultDriftService, VaultDriftService>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -609,6 +610,30 @@ app.MapGet("/api/vault/export", async (IVaultExportService export) =>
 }).RequireAuthorization();
 
 app.MapGet("/api/vault/stats", async (IVaultStatsService stats) => Results.Ok(await stats.GetAsync())).RequireAuthorization();
+
+app.MapGet("/api/vault/drift", async (IVaultDriftService drift) =>
+{
+    try
+    {
+        return Results.Ok(await drift.GetReportAsync());
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
+app.MapPost("/api/vault/drift/import-disk", async (IVaultDriftService drift) =>
+{
+    try
+    {
+        return Results.Ok(await drift.ImportDiskOnlyAsync());
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
 
 app.MapGet("/api/backups", async (IBackupService backups) => Results.Ok(await backups.ListBackupsAsync())).RequireAuthorization();
 

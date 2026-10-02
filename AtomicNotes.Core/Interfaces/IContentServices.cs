@@ -139,3 +139,9 @@ public interface IVaultStatsService
 {
     Task<VaultStats> GetAsync(CancellationToken ct = default);
 }
+
+public interface IVaultDriftService
+{
+    Task<VaultDriftReport> GetReportAsync(CancellationToken ct = default);
+    Task<VaultDriftImportResult> ImportDiskOnlyAsync(CancellationToken ct = default);
+}

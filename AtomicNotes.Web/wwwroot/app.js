@@ -1086,9 +1086,26 @@ function hitNode(event) {
 }
 
 async function loadSync() {
-  const report = await api("/api/sync");
+  const [report, drift] = await Promise.all([api("/api/sync"), api("/api/vault/drift")]);
   const lines = (report?.messages || []).map((line) => `<li>${escapeHtml(line)}</li>`).join("");
+  const driftRow = (entry) => `<li dir="ltr"><code>${escapeHtml(entry.relPath)}</code>${entry.title ? ` <span class="muted">(${escapeHtml(entry.title)})</span>` : ""}</li>`;
   $("view-sync").innerHTML = `
+    <div class="card" style="max-width:720px;margin-bottom:16px">
+      <h3>اختلاف دیسک و پایگاه</h3>
+      <p class="muted" style="margin:8px 0 14px">فایل‌های .md بدون ردیف در پایگاه، یا یادداشت‌های فعال بدون فایل روی دیسک.</p>
+      <div class="grid stats">
+        <article class="card"><span>فقط روی دیسک</span><strong>${drift.onlyOnDisk?.length ?? 0}</strong></article>
+        <article class="card"><span>فایل گم‌شده</span><strong>${drift.missingFileOnDisk?.length ?? 0}</strong></article>
+      </div>
+      <div class="row" style="margin-top:12px;flex-wrap:wrap;gap:8px">
+        <button class="primary" type="button" id="import-disk-orphans" ${drift.onlyOnDisk?.length ? "" : "disabled"}>ورود فایل‌های فقط دیسک</button>
+        <button class="ghost" type="button" id="reload-drift">بارگذاری مجدد</button>
+      </div>
+      <div style="margin-top:14px;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">
+        <div><h4 style="margin:0 0 6px">فقط روی دیسک</h4><ul class="muted">${(drift.onlyOnDisk || []).map(driftRow).join("") || "<li>—</li>"}</ul></div>
+        <div><h4 style="margin:0 0 6px">بدون فایل</h4><ul class="muted">${(drift.missingFileOnDisk || []).map(driftRow).join("") || "<li>—</li>"}</ul></div>
+      </div>
+    </div>
     <div class="card" style="max-width:720px">
       <h3>همگام‌سازی با Obsidian</h3>
       <p class="muted" style="margin:8px 0 14px">فایل‌های مارک‌داون خزانه و پایگاه‌داده دو طرفه هم‌خوان می‌شوند. برچسب‌ها و تاریخ‌ها در frontmatter فایل می‌مانند.</p>
@@ -1107,6 +1124,17 @@ async function loadSync() {
     await api("/api/sync", { method: "POST" });
     toast("همگام‌سازی انجام شد.");
     loadSync();
+  };
+  $("reload-drift").onclick = () => loadSync();
+  $("import-disk-orphans").onclick = async () => {
+    try {
+      toast("در حال ورود از دیسک…");
+      const result = await api("/api/vault/drift/import-disk", { method: "POST" });
+      toast(`${result.imported} فایل به پایگاه اضافه شد.`);
+      loadSync();
+    } catch (error) {
+      toast(error.message);
+    }
   };
 }
 
