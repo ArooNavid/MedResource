@@ -115,6 +115,49 @@ function wordCount(text) {
   return (text || "").trim().split(/\s+/).filter(Boolean).length;
 }
 
+function wikilinkMarkup(target) {
+  const text = (target || "").trim();
+  return text ? `[[${text}]]` : "";
+}
+
+async function copyPlainText(text) {
+  if (!text) return toast("چیزی برای کپی نیست.");
+  try {
+    await navigator.clipboard.writeText(text);
+    toast("در کلیپ‌بورد کپی شد.");
+  } catch {
+    toast("کپی ممکن نشد.");
+  }
+}
+
+async function copyCurrentNoteWikilink() {
+  if (!state.current?.note?.id) return toast("یادداشتی باز نیست.");
+  try {
+    const data = await api(`/api/notes/${state.current.note.id}/wikilink`);
+    await copyPlainText(data.markup);
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+function wrapEditorSelectionAsWikilink() {
+  const area = $("note-content");
+  if (!area) return false;
+  const start = area.selectionStart;
+  const end = area.selectionEnd;
+  if (start === end) return false;
+  const selected = area.value.slice(start, end).trim();
+  if (!selected) return false;
+  const wrapped = wikilinkMarkup(selected);
+  area.value = area.value.slice(0, start) + wrapped + area.value.slice(end);
+  area.selectionStart = start;
+  area.selectionEnd = start + wrapped.length;
+  area.focus();
+  schedulePreview();
+  toast("[[پیوند]] درج شد.");
+  return true;
+}
+
 function highlight(snippet) {
   return escapeHtml(snippet).replace(/&lt;b&gt;/g, "<b>").replace(/&lt;\/b&gt;/g, "</b>");
 }
@@ -288,6 +331,8 @@ function renderNotes() {
           <button class="ghost" type="button" id="merge-note" ${state.current?.note?.id ? "" : "disabled"}>ادغام</button>
           <button class="ghost" type="button" id="toggle-pin" ${state.current?.note?.id ? "" : "disabled"}>${state.current?.note?.pinned ? "برداشتن سنجاق" : "سنجاق"}</button>
           <button class="ghost" type="button" id="toggle-preview" ${state.current ? "" : "disabled"}>${state.showPreview ? "ویرایش" : "پیش‌نمایش"}</button>
+          <button class="ghost" type="button" id="copy-wikilink" ${state.current?.note?.id ? "" : "disabled"} title="Ctrl+Shift+L">کپی پیوند</button>
+          <button class="ghost" type="button" id="insert-wikilink" ${state.current?.note?.id ? "" : "disabled"} title="متن انتخاب‌شده را [[…]] می‌کند">درج [[…]]</button>
           <button class="ghost" type="button" id="sync-path" ${state.current?.note?.id ? "" : "disabled"}>هم‌نام فایل</button>
           <button class="ghost" type="button" id="export-md" ${state.current?.note?.id ? "" : "disabled"}>فایل .md</button>
           <button class="ghost" type="button" id="export-pdf" ${state.current ? "" : "disabled"}>PDF</button>
@@ -377,6 +422,10 @@ function renderNotes() {
   $("note-content").oninput = schedulePreview;
   if (state.showPreview) refreshPreview();
   $("delete-note").onclick = deleteNote;
+  $("copy-wikilink").onclick = () => copyCurrentNoteWikilink();
+  $("insert-wikilink").onclick = () => {
+    if (!wrapEditorSelectionAsWikilink()) toast("ابتدا بخشی از متن را در ویرایشگر انتخاب کنید.");
+  };
   $("sync-path").onclick = async () => {
     if (!state.current?.note?.id) return;
     try {
@@ -409,15 +458,24 @@ function renderNotes() {
     }
   };
   $("links-panel").querySelectorAll("[data-go]").forEach((button) => { button.onclick = () => openNote(button.dataset.go); });
+  $("links-panel").querySelectorAll("[data-copy-wikilink]").forEach((button) => {
+    button.onclick = () => copyPlainText(wikilinkMarkup(button.dataset.copyWikilink));
+  });
 }
 
 function linksHtml() {
   const outgoing = state.current?.outgoing || [];
   const backlinks = state.current?.backlinks || [];
-  const row = (item, id, title, resolved) => `<button class="note-item link-row" ${id ? `data-go="${id}"` : "disabled"}>
-    <span class="${resolved ? "" : "dangling"}">${escapeHtml(title)}</span>
-    <span class="dot" style="background:${resolved ? "var(--teal)" : "#b7b0a4"}"></span>
-  </button>`;
+  const row = (item, id, title, resolved) => {
+    const copyTarget = (item.rawTarget || title || "").trim();
+    return `<div class="row link-row-line" style="gap:6px;align-items:stretch">
+      <button class="note-item link-row" style="flex:1" type="button" ${id ? `data-go="${id}"` : "disabled"}>
+        <span class="${resolved ? "" : "dangling"}">${escapeHtml(title)}</span>
+        <span class="dot" style="background:${resolved ? "var(--teal)" : "#b7b0a4"}"></span>
+      </button>
+      ${copyTarget ? `<button class="ghost" type="button" data-copy-wikilink="${escapeHtml(copyTarget)}" title="کپی [[پیوند]]">کپی</button>` : ""}
+    </div>`;
+  };
   const note = state.current?.note;
   const meta = note ? `
     <h3>اطلاعات</h3>
@@ -1259,6 +1317,13 @@ document.addEventListener("keydown", (event) => {
   if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "r") {
     event.preventDefault();
     if (state.user) openRandomNote();
+  }
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "l") {
+    event.preventDefault();
+    if (!state.user || state.view !== "notes") return;
+    const area = $("note-content");
+    if (area && document.activeElement === area && wrapEditorSelectionAsWikilink()) return;
+    copyCurrentNoteWikilink();
   }
   if (event.key === "Escape" && !$("quick-open").hidden) closeQuickOpen();
 });
