@@ -50,6 +50,7 @@ builder.Services.AddSingleton<ITaskService, TaskService>();
 builder.Services.AddSingleton<IMarkdownPreviewService, MarkdownPreviewService>();
 builder.Services.AddSingleton<INoteMarkdownService, NoteMarkdownService>();
 builder.Services.AddSingleton<VaultWatcherService>();
+builder.Services.AddSingleton<IVaultExportService, VaultExportService>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -545,6 +546,19 @@ app.MapPut("/api/settings", async (SettingsBody body, ISettingsService settingsS
     watcher.Start();
     await scheduler.RestartAsync();
     return Results.Ok(new { message = "تنظیمات ذخیره شد." });
+}).RequireAuthorization();
+
+app.MapGet("/api/vault/export", async (IVaultExportService export) =>
+{
+    try
+    {
+        var (content, fileName) = await export.ExportMarkdownZipAsync();
+        return Results.File(content, "application/zip", fileName);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
 }).RequireAuthorization();
 
 app.MapGet("/api/backups", async (IBackupService backups) => Results.Ok(await backups.ListBackupsAsync())).RequireAuthorization();
