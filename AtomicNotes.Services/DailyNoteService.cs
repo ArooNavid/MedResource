@@ -14,12 +14,14 @@ public sealed class DailyNoteService : IDailyNoteService
     private readonly ISettingsService _settings;
     private readonly ITehranClockService _clock;
     private readonly NoteService _notes;
+    private readonly ITemplateService _templates;
 
-    public DailyNoteService(ISettingsService settings, ITehranClockService clock, NoteService notes)
+    public DailyNoteService(ISettingsService settings, ITehranClockService clock, NoteService notes, ITemplateService templates)
     {
         _settings = settings;
         _clock = clock;
         _notes = notes;
+        _templates = templates;
     }
 
     public async Task<DailyNoteResult> OpenAsync(long ownerUserId, string? tehranDate = null, CancellationToken ct = default)
@@ -44,7 +46,8 @@ public sealed class DailyNoteService : IDailyNoteService
 
         var previous = day.AddDays(-1).ToString(AppConstants.TehranDateFormat, CultureInfo.InvariantCulture);
         var next = day.AddDays(1).ToString(AppConstants.TehranDateFormat, CultureInfo.InvariantCulture);
-        var content = $"""
+        var fromTemplate = await _templates.RenderDailyAsync(day, ct);
+        var content = fromTemplate?.Content ?? $"""
             [[{previous}]] · [[{next}]]
 
             ## کارها
@@ -54,7 +57,8 @@ public sealed class DailyNoteService : IDailyNoteService
             ## یادداشت
 
             """;
-        var created = await _notes.CreateAtPathAsync(ownerUserId, date, content, rel, new[] { AppConstants.DailyNoteTag }, ct);
+        var tags = fromTemplate?.Tags ?? new[] { AppConstants.DailyNoteTag };
+        var created = await _notes.CreateAtPathAsync(ownerUserId, date, content, rel, tags, ct);
         return new DailyNoteResult(created, true, date, rel);
     }
 }

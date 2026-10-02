@@ -39,7 +39,7 @@ public sealed class DailyNoteTests
         var tags = new TagService(database.Factory);
         var links = new NoteLinkService(database.Factory);
         var notes = new NoteService(database.Factory, settings, tags, links, database.Stats, new VaultWriteGuard());
-        var daily = new DailyNoteService(settings, database.Clock, notes);
+        var daily = new DailyNoteService(settings, database.Clock, notes, new TemplateService(settings, database.Clock, notes, new TagService(database.Factory), new VaultWriteGuard()));
 
         var first = await daily.OpenAsync(owner, "2026-10-02");
         Assert.True(first.Created);
@@ -91,7 +91,7 @@ public sealed class DailyNoteTests
             Role = UserRole.User
         });
         var notes = new NoteService(database.Factory, settings, new TagService(database.Factory), new NoteLinkService(database.Factory), database.Stats, new VaultWriteGuard());
-        var daily = new DailyNoteService(settings, database.Clock, notes);
+        var daily = new DailyNoteService(settings, database.Clock, notes, new TemplateService(settings, database.Clock, notes, new TagService(database.Factory), new VaultWriteGuard()));
 
         var path = Path.Combine(vault, "daily", "2026-09-01.md");
         await File.WriteAllTextAsync(path, """
@@ -121,7 +121,7 @@ public sealed class DailyNoteTests
         var settings = new SettingsService(Path.Combine(Path.GetTempPath(), "atomicnotes-daily-" + Guid.NewGuid().ToString("N") + ".json"));
         settings.Load();
         var notes = new NoteService(database.Factory, settings, new TagService(database.Factory), new NoteLinkService(database.Factory), database.Stats, new VaultWriteGuard());
-        var daily = new DailyNoteService(settings, database.Clock, notes);
+        var daily = new DailyNoteService(settings, database.Clock, notes, new TemplateService(settings, database.Clock, notes, new TagService(database.Factory), new VaultWriteGuard()));
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => daily.OpenAsync(1, "۱۴۰۵/۰۷/۱۰"));
         Assert.Equal("تاریخ یادداشت روزانه باید به شکل yyyy-MM-dd باشد.", error.Message);
     }
@@ -153,7 +153,7 @@ public sealed class DailyNoteTests
             Role = UserRole.User
         });
         var notes = new NoteService(database.Factory, settings, new TagService(database.Factory), new NoteLinkService(database.Factory), database.Stats, new VaultWriteGuard());
-        var daily = new DailyNoteService(settings, database.Clock, notes);
+        var daily = new DailyNoteService(settings, database.Clock, notes, new TemplateService(settings, database.Clock, notes, new TagService(database.Factory), new VaultWriteGuard()));
 
         var opened = await daily.OpenAsync(owner);
         Assert.Equal(database.Clock.TehranDateString, opened.TehranDate);

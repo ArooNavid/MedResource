@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using AtomicNotes.Core;
 using AtomicNotes.Core.Interfaces;
 using AtomicNotes.Core.Models;
 using Dapper;
@@ -228,9 +229,7 @@ public sealed class ObsidianSyncService : IObsidianSyncService
 
     private bool ShouldTouch(string fullPath)
     {
-        var rel = Relative(fullPath);
-        return !rel.StartsWith(".staging/", StringComparison.OrdinalIgnoreCase)
-               && !rel.Contains("/.staging/", StringComparison.OrdinalIgnoreCase);
+        return !AppConstants.IsIgnoredVaultRelativePath(Relative(fullPath));
     }
 
     private string Relative(string fullPath)

@@ -3,6 +3,7 @@ const state = {
   user: null,
   view: "dashboard",
   notes: [],
+  templates: [],
   current: null,
   tags: [],
   tagFilter: [],
@@ -14,6 +15,7 @@ const $ = (id) => document.getElementById(id);
 const titles = {
   dashboard: ["امروز", "داشبورد"],
   notes: ["خزانه", "یادداشت‌ها"],
+  templates: ["الگو", "قالب‌ها"],
   search: ["متن کامل", "جستجو"],
   tags: ["ابر", "برچسب‌ها"],
   graph: ["پیوندها", "گراف نیرو"],
@@ -81,7 +83,7 @@ function openView(name) {
   const [kicker, title] = titles[name];
   $("view-kicker").textContent = kicker;
   $("view-title").textContent = title;
-  const loaders = { dashboard: loadDashboard, notes: loadNotes, search: renderSearch, tags: loadTags, graph: loadGraph, sync: loadSync, import: renderImport, backups: loadBackups, settings: loadSettings };
+  const loaders = { dashboard: loadDashboard, notes: loadNotes, templates: loadTemplates, search: renderSearch, tags: loadTags, graph: loadGraph, sync: loadSync, import: renderImport, backups: loadBackups, settings: loadSettings };
   loaders[name]();
 }
 
@@ -135,6 +137,7 @@ async function loadDashboard() {
 async function loadNotes() {
   const query = state.tagFilter.length ? `?tagIds=${state.tagFilter.join(",")}` : "";
   state.notes = await api("/api/notes" + query);
+  state.templates = await api("/api/templates");
   const currentId = state.current?.note?.id;
   if (currentId && state.notes.some((note) => note.id === currentId)) await openNote(currentId);
   else {
@@ -162,6 +165,11 @@ function renderNotes() {
       </div>
       <form id="editor" class="card">
         <div class="editor-head"><h3>ویرایش</h3><div class="row">
+          <select id="template-pick" style="max-width:160px" ${state.current?.note?.id ? "" : "disabled"}>
+            <option value="">قالب…</option>
+            ${(state.templates || []).map((template) => `<option value="${escapeHtml(template.name)}">${escapeHtml(template.title)}</option>`).join("")}
+          </select>
+          <button class="ghost" type="button" id="apply-template" ${state.current?.note?.id ? "" : "disabled"}>درج قالب</button>
           <button class="ghost" type="button" id="export-pdf" ${state.current ? "" : "disabled"}>PDF</button>
           <button class="danger" type="button" id="delete-note" ${state.current ? "" : "disabled"}>حذف</button>
         </div></div>
@@ -176,6 +184,7 @@ function renderNotes() {
   $("new-note").onclick = () => { state.current = { note: { title: "", content: "" }, tags: [], outgoing: [], backlinks: [] }; renderNotes(); };
   $("view-notes").querySelectorAll("[data-id]").forEach((button) => { button.onclick = () => openNote(button.dataset.id); });
   $("editor").onsubmit = saveNote;
+  $("apply-template").onclick = applyTemplate;
   $("delete-note").onclick = deleteNote;
   $("export-pdf").onclick = exportPdf;
   $("links-panel").querySelectorAll("[data-go]").forEach((button) => { button.onclick = () => openNote(button.dataset.go); });
@@ -203,6 +212,74 @@ async function openNote(id) {
   state.current = await api(`/api/notes/${id}`);
   if (state.view !== "notes") openView("notes");
   else renderNotes();
+}
+
+async function applyTemplate() {
+  const name = $("template-pick").value;
+  if (!name || !state.current?.note?.id) {
+    toast("یک قالب انتخاب کنید.");
+    return;
+  }
+  try {
+    const saved = await api(`/api/notes/${state.current.note.id}/template`, { method: "POST", body: { name } });
+    toast("قالب درج شد.");
+    await loadNotes();
+    await openNote(saved.id);
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function loadTemplates() {
+  state.templates = await api("/api/templates");
+  const cards = state.templates.map((template) => `
+    <article class="card">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <h3 style="margin:0">${escapeHtml(template.title)}</h3>
+        <button class="danger" type="button" data-delete-template="${escapeHtml(template.name)}">حذف</button>
+      </div>
+      <p class="muted" style="margin:8px 0">${escapeHtml((template.tags || []).join("، ") || "بدون برچسب")}</p>
+      <pre class="muted" style="white-space:pre-wrap;margin:0">${escapeHtml(template.content || "")}</pre>
+    </article>`).join("") || `<p class="muted">هنوز قالبی نیست.</p>`;
+  $("view-templates").innerHTML = `
+    <div class="split">
+      <form id="template-form" class="card">
+        <h3>قالب تازه</h3>
+        <p class="muted" style="margin:8px 0 14px">جاها: {{title}} {{date}} {{time}} {{yesterday}} {{tomorrow}}. عنوان daily متن یادداشت امروز را می‌سازد و این فایل‌ها یادداشت نیستند.</p>
+        <label>عنوان<input id="template-title" required /></label>
+        <label>برچسب‌ها، با ویرگول<input id="template-tags" /></label>
+        <label>متن<textarea id="template-content"></textarea></label>
+        <button class="primary" type="submit">ساخت قالب</button>
+        <p id="template-error" class="error" hidden></p>
+      </form>
+      <div class="list">${cards}</div>
+    </div>`;
+  $("template-form").onsubmit = async (event) => {
+    event.preventDefault();
+    $("template-error").hidden = true;
+    try {
+      await api("/api/templates", {
+        method: "POST",
+        body: {
+          title: $("template-title").value,
+          content: $("template-content").value,
+          tags: $("template-tags").value.split(/[,،]/).map((item) => item.trim()).filter(Boolean)
+        }
+      });
+      toast("قالب ساخته شد.");
+      loadTemplates();
+    } catch (error) {
+      $("template-error").hidden = false;
+      $("template-error").textContent = error.message;
+    }
+  };
+  $("view-templates").querySelectorAll("[data-delete-template]").forEach((button) => {
+    button.onclick = async () => {
+      await api("/api/templates?name=" + encodeURIComponent(button.dataset.deleteTemplate), { method: "DELETE" });
+      toast("قالب حذف شد.");
+      loadTemplates();
+    };
+  });
 }
 
 async function saveNote(event) {

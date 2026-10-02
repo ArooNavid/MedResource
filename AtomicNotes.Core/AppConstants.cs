@@ -34,4 +34,20 @@ public static class AppConstants
     public const string DailyNotesFolder = "daily";
 
     public const string DailyNoteTag = "روزانه";
+
+    /// <summary>Stage 23. Markdown templates stay in this vault folder and are not notes.</summary>
+    public const string TemplatesFolder = "templates";
+
+    /// <summary>File name, without extension, whose body fills a new daily note.</summary>
+    public const string DailyTemplateName = "daily";
+
+    public static bool IsIgnoredVaultRelativePath(string? relativePath)
+    {
+        var rel = (relativePath ?? "").Replace('\\', '/').Trim().TrimStart('/');
+        return rel.Equals(".staging", StringComparison.OrdinalIgnoreCase)
+               || rel.StartsWith(".staging/", StringComparison.OrdinalIgnoreCase)
+               || rel.Contains("/.staging/", StringComparison.OrdinalIgnoreCase)
+               || rel.Equals(TemplatesFolder, StringComparison.OrdinalIgnoreCase)
+               || rel.StartsWith(TemplatesFolder + "/", StringComparison.OrdinalIgnoreCase);
+    }
 }
