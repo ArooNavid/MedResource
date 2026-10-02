@@ -68,6 +68,7 @@ public interface INoteService
     Task<Note> SyncRelPathToTitleAsync(long id, CancellationToken ct = default);
     Task<Note> DuplicateAsync(long id, long ownerUserId, CancellationToken ct = default);
     Task<Note> MergeAsync(long targetId, long sourceId, long editorUserId, CancellationToken ct = default);
+    Task<Note> CreateFromLinkTargetAsync(long ownerUserId, string rawTarget, CancellationToken ct = default);
 }
 
 public interface IPdfImportService

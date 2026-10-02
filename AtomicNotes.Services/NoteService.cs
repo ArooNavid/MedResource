@@ -450,6 +450,19 @@ public sealed class NoteService : INoteService
         return updated;
     }
 
+    public async Task<Note> CreateFromLinkTargetAsync(long ownerUserId, string rawTarget, CancellationToken ct = default)
+    {
+        var title = (rawTarget ?? "").Trim();
+        if (title.Length == 0)
+            throw new InvalidOperationException("نام پیوند نمی‌تواند خالی باشد.");
+
+        var existingId = await _aliases.ResolveNoteIdAsync(title, ct);
+        if (existingId is not null)
+            return (await RequireActiveAsync(existingId.Value, ct))!;
+
+        return await CreateAsync(ownerUserId, title, "", null, Array.Empty<string>());
+    }
+
     private async Task<IReadOnlyList<string>> MergeAliasListsAsync(
         int targetId,
         string targetTitle,

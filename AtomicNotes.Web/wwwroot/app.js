@@ -182,12 +182,27 @@ async function loadDangling() {
       <div class="list" style="margin-top:12px">
         ${items.map((row) => `<article class="note-item trash-row">
           <div><code>[[${escapeHtml(row.rawTarget)}]]</code><div class="muted">در «${escapeHtml(row.sourceTitle)}»</div></div>
-          <button class="ghost" type="button" data-open-note="${row.sourceNoteId}">باز کردن</button>
+          <div class="row">
+            <button class="primary" type="button" data-create-target="${escapeHtml(row.rawTarget)}">ساخت یادداشت</button>
+            <button class="ghost" type="button" data-open-note="${row.sourceNoteId}">منبع</button>
+          </div>
         </article>`).join("") || `<p class="muted">پیوند شکسته‌ای نیست.</p>`}
       </div>
     </div>`;
   $("view-dangling").querySelectorAll("[data-open-note]").forEach((button) => {
     button.onclick = () => openNote(button.dataset.openNote);
+  });
+  $("view-dangling").querySelectorAll("[data-create-target]").forEach((button) => {
+    button.onclick = async () => {
+      try {
+        const note = await api("/api/links/create-target", { method: "POST", body: { target: button.dataset.createTarget } });
+        toast(`یادداشت «${note.title}» ساخته شد.`);
+        await loadDangling();
+        await openNote(note.id);
+      } catch (error) {
+        toast(error.message);
+      }
+    };
   });
 }
 

@@ -479,6 +479,18 @@ app.MapPut("/api/tags/{id:int}/color", async (int id, ColorBody body, ITagServic
 app.MapGet("/api/links/unresolved", async (INoteLinkService links) =>
     Results.Ok(await links.ListUnresolvedAsync())).RequireAuthorization();
 
+app.MapPost("/api/links/create-target", async (LinkTargetBody body, HttpContext http, INoteService notes) =>
+{
+    try
+    {
+        return Results.Ok(await notes.CreateFromLinkTargetAsync(UserId(http.User), body.Target ?? ""));
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
 app.MapGet("/api/graph", async (IGraphService graph) =>
 {
     var (nodes, edges) = await graph.LoadGraphAsync();
@@ -620,6 +632,8 @@ internal sealed record DailyRequest(string? Date);
 internal sealed record TemplateBody(string? Title, string? Content, string[]? Tags);
 
 internal sealed record ApplyTemplateBody(string? Name);
+
+internal sealed record LinkTargetBody(string? Target);
 
 internal sealed record TaskToggleBody(long NoteId, int LineIndex, bool Done);
 
