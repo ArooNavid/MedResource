@@ -1074,7 +1074,11 @@ async function loadBackups() {
     <div class="card" style="margin-bottom:16px">
       <h3>خروجی مارک‌داون</h3>
       <p class="muted">همهٔ فایل‌های .md خزانه (به‌جز پوشهٔ staging) در یک فایل zip.</p>
-      <button class="primary" type="button" id="export-vault-zip" style="margin-top:10px">دانلود zip خزانه</button>
+      <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:8px">
+        <button class="primary" type="button" id="export-vault-zip">دانلود zip خزانه</button>
+        <button class="ghost" type="button" id="import-vault-zip">ورود zip خزانه</button>
+        <input id="import-vault-zip-file" type="file" accept=".zip,application/zip" hidden />
+      </div>
     </div>
     <div class="card">
       <div class="editor-head">
@@ -1096,6 +1100,21 @@ async function loadBackups() {
       </div>
     </div>`;
   $("export-vault-zip").onclick = () => { window.location = "/api/vault/export"; };
+  $("import-vault-zip").onclick = () => $("import-vault-zip-file").click();
+  $("import-vault-zip-file").onchange = async () => {
+    const file = $("import-vault-zip-file").files?.[0];
+    if (!file) return;
+    const body = new FormData();
+    body.append("file", file);
+    try {
+      const result = await api("/api/vault/import", { method: "POST", body });
+      toast(`${result.imported} فایل وارد شد (${result.skipped} رد شد).`);
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      $("import-vault-zip-file").value = "";
+    }
+  };
   $("reload-backups").onclick = loadBackups;
   $("create-backup").onclick = async () => {
     toast("در حال ایجاد پشتیبان…");
