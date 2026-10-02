@@ -283,6 +283,22 @@ public sealed class NoteService : INoteService
             File.Delete(full);
     }
 
+    public async Task<int> RestoreAllTrashAsync(CancellationToken ct = default)
+    {
+        var trashed = await ListTrashAsync(ct);
+        foreach (var note in trashed)
+            await RestoreAsync(note.Id, ct);
+        return trashed.Count;
+    }
+
+    public async Task<int> EmptyTrashAsync(CancellationToken ct = default)
+    {
+        var trashed = await ListTrashAsync(ct);
+        foreach (var note in trashed)
+            await PurgeAsync(note.Id, ct);
+        return trashed.Count;
+    }
+
     public async Task<IReadOnlyList<Note>> RecentAsync(int limit, CancellationToken ct = default)
     {
         using var connection = _factory.Create();

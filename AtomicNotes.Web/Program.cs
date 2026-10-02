@@ -264,6 +264,18 @@ app.MapPut("/api/notes/{id:long}/parent", async (long id, ParentBody body, INote
 
 app.MapGet("/api/trash", async (INoteService notes) => Results.Ok(await notes.ListTrashAsync())).RequireAuthorization();
 
+app.MapPost("/api/trash/restore-all", async (INoteService notes) =>
+{
+    var count = await notes.RestoreAllTrashAsync();
+    return Results.Ok(new { count });
+}).RequireAuthorization();
+
+app.MapDelete("/api/trash", async (INoteService notes) =>
+{
+    var count = await notes.EmptyTrashAsync();
+    return Results.Ok(new { count });
+}).RequireAuthorization();
+
 app.MapPost("/api/trash/{id:long}/restore", async (long id, INoteService notes) =>
 {
     try
