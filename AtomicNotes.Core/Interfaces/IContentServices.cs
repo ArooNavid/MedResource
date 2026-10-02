@@ -54,3 +54,11 @@ public interface IPdfImportService
     Task<ImportOutcome> ImportAsync(long userId, string fileName, Stream pdf, CancellationToken ct = default);
     Task RecoverStagedAsync(CancellationToken ct = default);
 }
+
+public interface IObsidianSyncService
+{
+    SyncReport? LastReport { get; }
+    Task<SyncReport> SyncAllAsync(CancellationToken ct = default);
+    Task PullFileAsync(string fullPath, CancellationToken ct = default);
+    Task OnFileMissingAsync(string fullPath, CancellationToken ct = default);
+}

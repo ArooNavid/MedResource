@@ -17,6 +17,7 @@ const titles = {
   search: ["متن کامل", "جستجو"],
   tags: ["ابر", "برچسب‌ها"],
   graph: ["پیوندها", "گراف نیرو"],
+  sync: ["Obsidian", "همگام‌سازی خزانه"],
   import: ["PDF", "ورود اتمی"],
   backups: ["بایگانی", "پشتیبان‌گیری"],
   settings: ["برنامه", "تنظیمات"]
@@ -80,7 +81,7 @@ function openView(name) {
   const [kicker, title] = titles[name];
   $("view-kicker").textContent = kicker;
   $("view-title").textContent = title;
-  const loaders = { dashboard: loadDashboard, notes: loadNotes, search: renderSearch, tags: loadTags, graph: loadGraph, import: renderImport, backups: loadBackups, settings: loadSettings };
+  const loaders = { dashboard: loadDashboard, notes: loadNotes, search: renderSearch, tags: loadTags, graph: loadGraph, sync: loadSync, import: renderImport, backups: loadBackups, settings: loadSettings };
   loaders[name]();
 }
 
@@ -134,8 +135,12 @@ async function loadDashboard() {
 async function loadNotes() {
   const query = state.tagFilter.length ? `?tagIds=${state.tagFilter.join(",")}` : "";
   state.notes = await api("/api/notes" + query);
-  if (state.current?.note?.id) await openNote(state.current.note.id);
-  else renderNotes();
+  const currentId = state.current?.note?.id;
+  if (currentId && state.notes.some((note) => note.id === currentId)) await openNote(currentId);
+  else {
+    state.current = null;
+    renderNotes();
+  }
 }
 
 function renderNotes() {
@@ -468,6 +473,31 @@ function hitNode(event) {
   const x = event.offsetX * devicePixelRatio;
   const y = event.offsetY * devicePixelRatio;
   return state.graph.nodes.find((node) => node._p && Math.hypot(node._p.x - x, node._p.y - y) < node.radius * devicePixelRatio * 0.7);
+}
+
+async function loadSync() {
+  const report = await api("/api/sync");
+  const lines = (report?.messages || []).map((line) => `<li>${escapeHtml(line)}</li>`).join("");
+  $("view-sync").innerHTML = `
+    <div class="card" style="max-width:720px">
+      <h3>همگام‌سازی با Obsidian</h3>
+      <p class="muted" style="margin:8px 0 14px">فایل‌های مارک‌داون خزانه و پایگاه‌داده دو طرفه هم‌خوان می‌شوند. برچسب‌ها و تاریخ‌ها در frontmatter فایل می‌مانند.</p>
+      <div class="grid stats">
+        <article class="card"><span>از فایل</span><strong>${report?.pulled ?? 0}</strong></article>
+        <article class="card"><span>به فایل</span><strong>${report?.pushed ?? 0}</strong></article>
+        <article class="card"><span>حذف</span><strong>${report?.deleted ?? 0}</strong></article>
+        <article class="card"><span>تعارض</span><strong>${report?.conflicts ?? 0}</strong></article>
+      </div>
+      <p class="muted" style="margin-top:12px">${report ? `آخرین اجرا: ${escapeHtml(report.syncedAtUtc)} · بدون تغییر ${report.unchanged}` : "هنوز همگام‌سازی نشده است."}</p>
+      <div class="row" style="margin-top:12px"><button class="primary" id="sync-now">همگام‌سازی اکنون</button></div>
+      <ul>${lines}</ul>
+    </div>`;
+  $("sync-now").onclick = async () => {
+    toast("در حال همگام‌سازی…");
+    await api("/api/sync", { method: "POST" });
+    toast("همگام‌سازی انجام شد.");
+    loadSync();
+  };
 }
 
 function renderImport() {

@@ -42,6 +42,7 @@ builder.Services.AddSingleton<IPdfImportService, PdfImportService>();
 builder.Services.AddSingleton<IBackupService, BackupService>();
 builder.Services.AddSingleton<IBackupSchedulerService, BackupSchedulerService>();
 builder.Services.AddSingleton<AuthService>();
+builder.Services.AddSingleton<IObsidianSyncService, ObsidianSyncService>();
 builder.Services.AddSingleton<VaultWatcherService>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -63,6 +64,7 @@ var app = builder.Build();
 
 await app.Services.GetRequiredService<DatabaseMigrator>().MigrateAsync();
 await app.Services.GetRequiredService<IPdfImportService>().RecoverStagedAsync();
+await app.Services.GetRequiredService<IObsidianSyncService>().SyncAllAsync();
 app.Services.GetRequiredService<VaultWatcherService>().Start();
 app.Services.GetRequiredService<IBackupSchedulerService>().Start();
 app.Lifetime.ApplicationStopping.Register(() =>
@@ -255,6 +257,10 @@ app.MapGet("/api/graph", async (IGraphService graph) =>
         edges = edges.Select(edge => new { edge.SourceNoteId, edge.TargetNoteId, edge.IsResolved })
     });
 }).RequireAuthorization();
+
+app.MapGet("/api/sync", (IObsidianSyncService sync) => Results.Ok(sync.LastReport)).RequireAuthorization();
+
+app.MapPost("/api/sync", async (IObsidianSyncService sync) => Results.Ok(await sync.SyncAllAsync())).RequireAuthorization();
 
 app.MapGet("/api/settings", (ISettingsService settingsService) =>
 {

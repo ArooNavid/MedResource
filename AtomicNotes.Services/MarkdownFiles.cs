@@ -16,14 +16,22 @@ public static class MarkdownFiles
         .IgnoreUnmatchedProperties()
         .Build();
 
-    public static string Compose(string title, int depth, IEnumerable<string> tags, string body, string? sourcePdf = null)
+    public static string Compose(
+        string title,
+        int depth,
+        IEnumerable<string> tags,
+        string body,
+        string? sourcePdf = null,
+        string? created = null,
+        string? updated = null)
     {
         var front = new Dictionary<string, object?>
         {
             ["title"] = title,
             ["depth"] = depth,
             ["tags"] = tags.ToList(),
-            ["updated"] = DateTime.UtcNow.ToString("yyyy-MM-dd")
+            ["created"] = created ?? DateTime.UtcNow.ToString("yyyy-MM-dd"),
+            ["updated"] = updated ?? DateTime.UtcNow.ToString("yyyy-MM-dd")
         };
         if (!string.IsNullOrWhiteSpace(sourcePdf))
             front["sourcePdf"] = sourcePdf;
@@ -40,14 +48,14 @@ public static class MarkdownFiles
         return builder.ToString();
     }
 
-    public static (string Title, int Depth, List<string> Tags, string Body) Parse(string markdown)
+    public static MarkdownDocument Parse(string markdown)
     {
         if (!markdown.StartsWith("---", StringComparison.Ordinal))
-            return (string.Empty, 1, new List<string>(), markdown);
+            return new MarkdownDocument(string.Empty, 1, Array.Empty<string>(), markdown, null, null);
 
         var end = markdown.IndexOf("\n---", 3, StringComparison.Ordinal);
         if (end < 0)
-            return (string.Empty, 1, new List<string>(), markdown);
+            return new MarkdownDocument(string.Empty, 1, Array.Empty<string>(), markdown, null, null);
 
         var yaml = markdown[4..end];
         var bodyStart = end + 4;
@@ -62,16 +70,35 @@ public static class MarkdownFiles
             var depth = 1;
             if (map.TryGetValue("depth", out var rawDepth) && int.TryParse(rawDepth?.ToString(), out var parsed))
                 depth = Math.Clamp(parsed, 1, AppConstants.MaxTreeDepth);
-            var tags = new List<string>();
-            if (map.TryGetValue("tags", out var rawTags) && rawTags is IEnumerable<object> list)
-                tags.AddRange(list.Select(item => item?.ToString() ?? "").Where(item => item.Length > 0));
-            return (title, depth, tags, body);
+            var tags = ReadTags(map);
+            var created = map.TryGetValue("created", out var rawCreated) ? rawCreated?.ToString() : null;
+            var updated = map.TryGetValue("updated", out var rawUpdated) ? rawUpdated?.ToString() : null;
+            return new MarkdownDocument(title, depth, tags, body, created, updated);
         }
         catch
         {
-            return (string.Empty, 1, new List<string>(), body);
+            return new MarkdownDocument(string.Empty, 1, Array.Empty<string>(), body, null, null);
         }
     }
+
+    private static List<string> ReadTags(Dictionary<string, object> map)
+    {
+        if (!map.TryGetValue("tags", out var rawTags) || rawTags is null)
+            return new List<string>();
+        if (rawTags is string single)
+            return single.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        if (rawTags is IEnumerable<object> list)
+            return list.Select(item => item?.ToString() ?? "").Where(item => item.Length > 0).ToList();
+        return new List<string>();
+    }
+
+    public sealed record MarkdownDocument(
+    string Title,
+    int Depth,
+    IReadOnlyList<string> Tags,
+    string Body,
+    string? Created,
+    string? Updated);
 
     public static string SanitizeFileName(string title)
     {

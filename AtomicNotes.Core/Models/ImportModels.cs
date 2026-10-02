@@ -20,6 +20,15 @@ public sealed class ImportOperation
     public string? ErrorMessage { get; set; }
 }
 
+public sealed record SyncReport(
+    DateTime SyncedAtUtc,
+    int Pulled,
+    int Pushed,
+    int Deleted,
+    int Unchanged,
+    int Conflicts,
+    IReadOnlyList<string> Messages);
+
 public sealed record ImportOutcome(
     bool Success,
     string Status,

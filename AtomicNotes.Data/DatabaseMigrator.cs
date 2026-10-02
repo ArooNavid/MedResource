@@ -70,6 +70,7 @@ public sealed class DatabaseMigrator
             case 5: Migration005_FtsSearch(connection, transaction); break;
             case 6: Migration006_Tags(connection, transaction); break;
             case 7: Migration007_NoteLinks(connection, transaction); break;
+            case 8: Migration008_ObsidianSync(connection, transaction); break;
             default: throw new InvalidOperationException($"No migration defined for version {version}.");
         }
     }
@@ -289,6 +290,20 @@ public sealed class DatabaseMigrator
 
             CREATE INDEX IF NOT EXISTS ix_note_links_source ON note_links(source_note_id);
             CREATE INDEX IF NOT EXISTS ix_note_links_target ON note_links(target_note_id);
+            """;
+
+        connection.Execute(sql, transaction: transaction);
+    }
+
+    private static void Migration008_ObsidianSync(IDbConnection connection, IDbTransaction transaction)
+    {
+        const string sql = """
+            CREATE TABLE IF NOT EXISTS vault_sync (
+                note_id    INTEGER PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE,
+                file_hash  TEXT    NOT NULL,
+                db_hash    TEXT    NOT NULL,
+                synced_at  TEXT    NOT NULL
+            );
             """;
 
         connection.Execute(sql, transaction: transaction);

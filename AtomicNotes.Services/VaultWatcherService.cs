@@ -7,7 +7,7 @@ namespace AtomicNotes.Services;
 public sealed class VaultWatcherService : IDisposable
 {
     private readonly ISettingsService _settings;
-    private readonly NoteService _notes;
+    private readonly IObsidianSyncService _sync;
     private readonly VaultWriteGuard _guard;
     private readonly ILogger<VaultWatcherService> _logger;
     private readonly object _gate = new();
@@ -16,12 +16,12 @@ public sealed class VaultWatcherService : IDisposable
 
     public VaultWatcherService(
         ISettingsService settings,
-        NoteService notes,
+        IObsidianSyncService sync,
         VaultWriteGuard guard,
         ILogger<VaultWatcherService>? logger = null)
     {
         _settings = settings;
-        _notes = notes;
+        _sync = sync;
         _guard = guard;
         _logger = logger ?? NullLogger<VaultWatcherService>.Instance;
     }
@@ -45,16 +45,15 @@ public sealed class VaultWatcherService : IDisposable
         _watcher.EnableRaisingEvents = true;
     }
 
-    private void OnRenamed(object sender, RenamedEventArgs e) => Schedule(e.FullPath);
+    private void OnRenamed(object sender, RenamedEventArgs e)
+    {
+        Schedule(e.OldFullPath);
+        Schedule(e.FullPath);
+    }
 
     private void OnChanged(object sender, FileSystemEventArgs e) => Schedule(e.FullPath);
 
-    private void OnDeleted(object sender, FileSystemEventArgs e)
-    {
-        // External deletes are picked up the next time the note list is loaded from the database.
-        // The file is already gone; the database row stays until the user deletes the note in the app.
-        _logger.LogDebug("Vault file removed: {Path}", e.FullPath);
-    }
+    private void OnDeleted(object sender, FileSystemEventArgs e) => Schedule(e.FullPath);
 
     private void Schedule(string fullPath)
     {
@@ -83,9 +82,12 @@ public sealed class VaultWatcherService : IDisposable
         try
         {
             await Task.Delay(400, cts.Token);
-            if (!File.Exists(fullPath) || _guard.IsSuppressed(fullPath))
+            if (_guard.IsSuppressed(fullPath))
                 return;
-            await _notes.UpsertFromFileAsync(fullPath, cts.Token);
+            if (File.Exists(fullPath))
+                await _sync.PullFileAsync(fullPath, cts.Token);
+            else
+                await _sync.OnFileMissingAsync(fullPath, cts.Token);
         }
         catch (OperationCanceledException)
         {

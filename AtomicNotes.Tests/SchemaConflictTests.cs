@@ -44,5 +44,6 @@ public sealed class SchemaConflictTests
         Assert.Contains("note_tags", tables);
         Assert.Contains("note_links", tables);
         Assert.Contains("user_daily_stats", tables);
+        Assert.Contains("vault_sync", tables);
     }
 }

@@ -12,9 +12,9 @@ public static class AppConstants
 
     /// <summary>
     /// 1 baseline, 2 users, 3 role, 4 per-user activity,
-    /// 5 FTS, 6 tags, 7 wikilinks.
+    /// 5 FTS, 6 tags, 7 wikilinks, 8 Obsidian sync state.
     /// </summary>
-    public const int CurrentSchemaVersion = 7;
+    public const int CurrentSchemaVersion = 8;
 
     public const string MarkdownExtension = ".md";
     public const string TehranDateFormat = "yyyy-MM-dd";
