@@ -91,6 +91,25 @@ public sealed class NoteLinkService : INoteLinkService
                 cancellationToken: ct));
     }
 
+    public async Task<IReadOnlyList<UnresolvedLink>> ListUnresolvedAsync(CancellationToken ct = default)
+    {
+        using var connection = _factory.Create();
+        var rows = await connection.QueryAsync<UnresolvedLink>(
+            new CommandDefinition(
+                """
+                SELECT nl.source_note_id AS SourceNoteId,
+                       ns.title AS SourceTitle,
+                       nl.raw_target AS RawTarget
+                  FROM note_links nl
+                  JOIN notes ns ON ns.id = nl.source_note_id
+                 WHERE nl.target_note_id IS NULL
+                   AND ns.deleted_at IS NULL
+                 ORDER BY nl.raw_target COLLATE NOCASE, ns.title COLLATE NOCASE
+                """,
+                cancellationToken: ct));
+        return rows.ToList();
+    }
+
     public async Task RemapTargetNoteAsync(int oldTargetNoteId, int newTargetNoteId, CancellationToken ct = default)
     {
         using var connection = _factory.Create();

@@ -22,3 +22,11 @@ public sealed record NoteLink
     public string TargetTitle { get; init; } = string.Empty;
     public bool IsResolved => TargetNoteId.HasValue;
 }
+
+/// <summary>Stage 40: wikilink target that does not resolve to a note.</summary>
+public sealed record UnresolvedLink
+{
+    public int SourceNoteId { get; init; }
+    public string SourceTitle { get; init; } = string.Empty;
+    public string RawTarget { get; init; } = string.Empty;
+}
