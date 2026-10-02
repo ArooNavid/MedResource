@@ -5,7 +5,7 @@ using AtomicNotes.Core.Models;
 
 namespace AtomicNotes.Services;
 
-/// <summary>Stage 44: import markdown files from a zip into the vault (pairs with stage 42 export).</summary>
+/// <summary>Stage 44/47: import markdown zip; stage 47 adds dry-run preview and per-file report.</summary>
 public sealed class VaultImportService : IVaultImportService
 {
     private readonly ISettingsService _settings;
@@ -17,17 +17,25 @@ public sealed class VaultImportService : IVaultImportService
         _notes = notes;
     }
 
-    public async Task<VaultImportResult> ImportMarkdownZipAsync(Stream zipStream, CancellationToken ct = default)
+    public Task<VaultImportResult> PreviewMarkdownZipAsync(Stream zipStream, CancellationToken ct = default) =>
+        ProcessZipAsync(zipStream, dryRun: true, ct);
+
+    public Task<VaultImportResult> ImportMarkdownZipAsync(Stream zipStream, CancellationToken ct = default) =>
+        ProcessZipAsync(zipStream, dryRun: false, ct);
+
+    private async Task<VaultImportResult> ProcessZipAsync(Stream zipStream, bool dryRun, CancellationToken ct)
     {
         var vault = _settings.Current.VaultPath;
         if (string.IsNullOrWhiteSpace(vault))
             throw new InvalidOperationException("مسیر خزانه تنظیم نشده است.");
-        Directory.CreateDirectory(vault);
+        if (!dryRun)
+            Directory.CreateDirectory(vault);
         var vaultRoot = Path.GetFullPath(vault).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
 
         var imported = 0;
+        var updated = 0;
         var skipped = 0;
-        var messages = new List<string>();
+        var entries = new List<VaultImportEntry>();
 
         using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read, leaveOpen: true);
         foreach (var entry in archive.Entries)
@@ -40,12 +48,14 @@ public sealed class VaultImportService : IVaultImportService
             if (rel.Length == 0 || !rel.EndsWith(AppConstants.MarkdownExtension, StringComparison.OrdinalIgnoreCase))
             {
                 skipped++;
+                entries.Add(new VaultImportEntry(entry.FullName, VaultImportAction.Skipped, "رد شد: پسوند غیر از .md"));
                 continue;
             }
 
             if (AppConstants.IsIgnoredVaultRelativePath(rel))
             {
                 skipped++;
+                entries.Add(new VaultImportEntry(rel, VaultImportAction.Skipped, "رد شد: مسیر نادیده‌گرفته‌شده"));
                 continue;
             }
 
@@ -53,18 +63,43 @@ public sealed class VaultImportService : IVaultImportService
             if (!full.StartsWith(vaultRoot, StringComparison.OrdinalIgnoreCase))
             {
                 skipped++;
-                messages.Add($"رد شد (مسیر نامعتبر): {rel}");
+                entries.Add(new VaultImportEntry(rel, VaultImportAction.Invalid, "رد شد: مسیر نامعتبر"));
+                continue;
+            }
+
+            var existing = await _notes.FindByRelPathAsync(rel, ct);
+            if (dryRun)
+            {
+                if (existing is null)
+                {
+                    imported++;
+                    entries.Add(new VaultImportEntry(rel, VaultImportAction.New, "جدید: در پایگاه‌داده ثبت می‌شود"));
+                }
+                else
+                {
+                    updated++;
+                    entries.Add(new VaultImportEntry(rel, VaultImportAction.Updated, "به‌روزرسانی: یادداشت موجود بازنویسی می‌شود"));
+                }
+
                 continue;
             }
 
             Directory.CreateDirectory(Path.GetDirectoryName(full)!);
             entry.ExtractToFile(full, overwrite: true);
             await _notes.UpsertFromFileAsync(full, ct);
-            imported++;
-            messages.Add($"وارد شد: {rel}");
+            if (existing is null)
+            {
+                imported++;
+                entries.Add(new VaultImportEntry(rel, VaultImportAction.New, "وارد شد (جدید)"));
+            }
+            else
+            {
+                updated++;
+                entries.Add(new VaultImportEntry(rel, VaultImportAction.Updated, "وارد شد (به‌روزرسانی)"));
+            }
         }
 
-        return new VaultImportResult(imported, skipped, messages);
+        return new VaultImportResult(imported, updated, skipped, dryRun, entries);
     }
 
     private static string NormalizeZipEntry(string entryName)
