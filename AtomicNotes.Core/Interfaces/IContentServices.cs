@@ -56,7 +56,9 @@ public interface INoteService
     Task DeleteAsync(long id, CancellationToken ct = default);
     Task<IReadOnlyList<Note>> ListTrashAsync(CancellationToken ct = default);
     Task<Note> RestoreAsync(long id, CancellationToken ct = default);
+    Task<int> RestoreAllTrashAsync(CancellationToken ct = default);
     Task PurgeAsync(long id, CancellationToken ct = default);
+    Task<int> EmptyTrashAsync(CancellationToken ct = default);
     Task<IReadOnlyList<Note>> RecentAsync(int limit, CancellationToken ct = default);
     Task<IReadOnlyList<Note>> ListPinnedAsync(CancellationToken ct = default);
     Task<Note> SetPinnedAsync(long id, bool pinned, CancellationToken ct = default);

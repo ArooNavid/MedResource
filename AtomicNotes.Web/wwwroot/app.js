@@ -605,8 +605,16 @@ async function loadTrash() {
   const items = await api("/api/trash");
   $("view-trash").innerHTML = `
     <div class="card" style="max-width:720px">
-      <h3>یادداشت‌های حذف‌شده</h3>
-      <p class="muted">فایل در خزانه می‌ماند تا بازیابی یا حذف دائمی.</p>
+      <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div>
+          <h3 style="margin:0">یادداشت‌های حذف‌شده</h3>
+          <p class="muted" style="margin:6px 0 0">فایل در خزانه می‌ماند تا بازیابی یا حذف دائمی.</p>
+        </div>
+        <div class="row">
+          <button class="ghost" type="button" id="trash-restore-all" ${items.length ? "" : "disabled"}>بازیابی همه</button>
+          <button class="danger" type="button" id="trash-empty" ${items.length ? "" : "disabled"}>خالی کردن سطل</button>
+        </div>
+      </div>
       <div class="list" style="margin-top:12px">
         ${items.map((note) => `<article class="note-item trash-row">
           <div><strong>${escapeHtml(note.title)}</strong><div class="muted">${escapeHtml(formatIsoTehran(note.deletedAt))}</div></div>
@@ -617,6 +625,17 @@ async function loadTrash() {
         </article>`).join("") || `<p class="muted">سطل زباله خالی است.</p>`}
       </div>
     </div>`;
+  $("trash-restore-all")?.addEventListener("click", async () => {
+    const result = await api("/api/trash/restore-all", { method: "POST" });
+    toast(`${result.count} یادداشت بازیابی شد.`);
+    loadTrash();
+  });
+  $("trash-empty")?.addEventListener("click", async () => {
+    if (!confirm("همهٔ یادداشت‌های سطل برای همیشه حذف شوند؟")) return;
+    const result = await api("/api/trash", { method: "DELETE" });
+    toast(`${result.count} یادداشت برای همیشه حذف شد.`);
+    loadTrash();
+  });
   $("view-trash").querySelectorAll("[data-restore]").forEach((button) => {
     button.onclick = async () => {
       await api(`/api/trash/${button.dataset.restore}/restore`, { method: "POST" });

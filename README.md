@@ -23,6 +23,7 @@
 | 35 | نام مستعار یادداشت (`aliases` در frontmatter و حل `[[wikilink]]`) |
 | 36 | یادداشت تصادفی (`GET /api/notes/random`، `Ctrl+Shift+R`) |
 | 37 | مرتب‌سازی لیست (`sort` / `order` روی `GET /api/notes`) |
+| 38 | خالی کردن سطل و بازیابی همه (`DELETE/POST /api/trash`) |
 
 نسخهٔ پایگاه‌داده: **۱۱** (جدول `note_aliases`).
 
