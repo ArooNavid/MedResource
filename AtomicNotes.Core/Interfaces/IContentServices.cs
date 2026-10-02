@@ -65,6 +65,11 @@ public interface ITemplateService
     Task<Note> ApplyAsync(long noteId, long editorUserId, string name, CancellationToken ct = default);
 }
 
+public interface IMarkdownPreviewService
+{
+    Task<string> RenderAsync(string markdown, long? noteId = null, CancellationToken ct = default);
+}
+
 public interface ITaskService
 {
     Task<TaskListSummary> ListAsync(bool? openOnly = null, CancellationToken ct = default);

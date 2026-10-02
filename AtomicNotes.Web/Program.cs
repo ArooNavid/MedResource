@@ -46,6 +46,7 @@ builder.Services.AddSingleton<IObsidianSyncService, ObsidianSyncService>();
 builder.Services.AddSingleton<ITemplateService, TemplateService>();
 builder.Services.AddSingleton<IDailyNoteService, DailyNoteService>();
 builder.Services.AddSingleton<ITaskService, TaskService>();
+builder.Services.AddSingleton<IMarkdownPreviewService, MarkdownPreviewService>();
 builder.Services.AddSingleton<VaultWatcherService>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -255,6 +256,9 @@ app.MapPost("/api/notes/{id:long}/template", async (long id, ApplyTemplateBody b
         return Results.BadRequest(new { error = ex.Message });
     }
 }).RequireAuthorization();
+
+app.MapPost("/api/markdown/preview", async (PreviewBody body, IMarkdownPreviewService preview) =>
+    Results.Ok(new { html = await preview.RenderAsync(body.Content ?? string.Empty, body.NoteId) })).RequireAuthorization();
 
 app.MapGet("/api/tasks", async (bool? open, ITaskService tasks) =>
     Results.Ok(await tasks.ListAsync(open))).RequireAuthorization();
@@ -479,6 +483,8 @@ internal sealed record TemplateBody(string? Title, string? Content, string[]? Ta
 internal sealed record ApplyTemplateBody(string? Name);
 
 internal sealed record TaskToggleBody(long NoteId, int LineIndex, bool Done);
+
+internal sealed record PreviewBody(string? Content, long? NoteId);
 internal sealed record ColorBody(string? ColorHex);
 internal sealed record SettingsBody(string? VaultPath, string? BackupPath, int BackupIntervalHours, string? Theme, bool NotificationsEnabled);
 internal sealed record RestoreBody(string? FilePath);
