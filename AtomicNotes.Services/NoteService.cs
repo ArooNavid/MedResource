@@ -38,9 +38,9 @@ public sealed class NoteService : INoteService
                 """
                 SELECT id AS Id, title AS Title, content AS Content, rel_path AS RelPath,
                        depth AS Depth, parent_note_id AS ParentNoteId, owner_user_id AS OwnerUserId,
-                       created_at AS CreatedAt, updated_at AS UpdatedAt
+                       created_at AS CreatedAt, updated_at AS UpdatedAt, pinned AS Pinned
                   FROM notes
-                 ORDER BY updated_at DESC
+                 ORDER BY pinned DESC, updated_at DESC
                 """,
                 cancellationToken: ct));
         return rows.ToList();
@@ -217,6 +217,28 @@ public sealed class NoteService : INoteService
         return rows.ToList();
     }
 
+    public async Task<IReadOnlyList<Note>> ListPinnedAsync(CancellationToken ct = default)
+    {
+        using var connection = _factory.Create();
+        var rows = await connection.QueryAsync<Note>(
+            new CommandDefinition(
+                SelectOne + " WHERE pinned = 1 ORDER BY updated_at DESC",
+                cancellationToken: ct));
+        return rows.ToList();
+    }
+
+    public async Task<Note> SetPinnedAsync(long id, bool pinned, CancellationToken ct = default)
+    {
+        _ = await GetAsync(id, ct) ?? throw new InvalidOperationException("یادداشت پیدا نشد.");
+        using var connection = _factory.Create();
+        await connection.ExecuteAsync(
+            new CommandDefinition(
+                "UPDATE notes SET pinned = @Pinned WHERE id = @Id",
+                new { Id = id, Pinned = pinned ? 1 : 0 },
+                cancellationToken: ct));
+        return (await GetAsync(id, ct))!;
+    }
+
     public async Task UpsertFromFileAsync(string fullPath, CancellationToken ct = default)
     {
         var vault = _settings.Current.VaultPath;
@@ -326,7 +348,7 @@ public sealed class NoteService : INoteService
     private const string SelectOne = """
         SELECT id AS Id, title AS Title, content AS Content, rel_path AS RelPath,
                depth AS Depth, parent_note_id AS ParentNoteId, owner_user_id AS OwnerUserId,
-               created_at AS CreatedAt, updated_at AS UpdatedAt
+               created_at AS CreatedAt, updated_at AS UpdatedAt, pinned AS Pinned
           FROM notes
         """;
 }

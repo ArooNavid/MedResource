@@ -71,6 +71,7 @@ public sealed class DatabaseMigrator
             case 6: Migration006_Tags(connection, transaction); break;
             case 7: Migration007_NoteLinks(connection, transaction); break;
             case 8: Migration008_ObsidianSync(connection, transaction); break;
+            case 9: Migration009_PinnedNotes(connection, transaction); break;
             default: throw new InvalidOperationException($"No migration defined for version {version}.");
         }
     }
@@ -304,6 +305,16 @@ public sealed class DatabaseMigrator
                 db_hash    TEXT    NOT NULL,
                 synced_at  TEXT    NOT NULL
             );
+            """;
+
+        connection.Execute(sql, transaction: transaction);
+    }
+
+    private static void Migration009_PinnedNotes(IDbConnection connection, IDbTransaction transaction)
+    {
+        const string sql = """
+            ALTER TABLE notes ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0 CHECK(pinned IN (0,1));
+            CREATE INDEX IF NOT EXISTS idx_notes_pinned ON notes(pinned, updated_at);
             """;
 
         connection.Execute(sql, transaction: transaction);
