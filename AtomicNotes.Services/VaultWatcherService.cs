@@ -1,3 +1,4 @@
+using AtomicNotes.Core;
 using AtomicNotes.Core.Interfaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -57,7 +58,9 @@ public sealed class VaultWatcherService : IDisposable
 
     private void Schedule(string fullPath)
     {
-        if (fullPath.Contains($"{Path.DirectorySeparatorChar}.staging{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+        var vault = _settings.Current.VaultPath;
+        if (!string.IsNullOrWhiteSpace(vault)
+            && AppConstants.IsIgnoredVaultRelativePath(Path.GetRelativePath(vault, fullPath)))
             return;
         if (_guard.IsSuppressed(fullPath))
             return;

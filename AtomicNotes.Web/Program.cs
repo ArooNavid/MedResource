@@ -43,6 +43,7 @@ builder.Services.AddSingleton<IBackupService, BackupService>();
 builder.Services.AddSingleton<IBackupSchedulerService, BackupSchedulerService>();
 builder.Services.AddSingleton<AuthService>();
 builder.Services.AddSingleton<IObsidianSyncService, ObsidianSyncService>();
+builder.Services.AddSingleton<ITemplateService, TemplateService>();
 builder.Services.AddSingleton<IDailyNoteService, DailyNoteService>();
 builder.Services.AddSingleton<VaultWatcherService>();
 
@@ -205,6 +206,47 @@ app.MapPut("/api/notes/{id:long}", async (long id, NoteBody body, HttpContext ht
     try
     {
         var note = await notes.UpdateAsync(id, UserId(http.User), body.Title ?? "", body.Content ?? "", body.Tags ?? Array.Empty<string>());
+        return Results.Ok(note);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
+app.MapGet("/api/templates", async (ITemplateService templates) => Results.Ok(await templates.ListAsync())).RequireAuthorization();
+
+app.MapPost("/api/templates", async (TemplateBody body, ITemplateService templates) =>
+{
+    try
+    {
+        var template = await templates.CreateAsync(body.Title ?? "", body.Content ?? "", body.Tags ?? Array.Empty<string>());
+        return Results.Ok(template);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
+app.MapDelete("/api/templates", async (string name, ITemplateService templates) =>
+{
+    try
+    {
+        await templates.DeleteAsync(name);
+        return Results.Ok();
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
+app.MapPost("/api/notes/{id:long}/template", async (long id, ApplyTemplateBody body, HttpContext http, ITemplateService templates) =>
+{
+    try
+    {
+        var note = await templates.ApplyAsync(id, UserId(http.User), body.Name ?? "");
         return Results.Ok(note);
     }
     catch (InvalidOperationException ex)
@@ -399,6 +441,10 @@ internal sealed record LoginBody(string? Username, string? Password);
 internal sealed record NoteBody(string? Title, string? Content, long? ParentNoteId, string[]? Tags);
 
 internal sealed record DailyRequest(string? Date);
+
+internal sealed record TemplateBody(string? Title, string? Content, string[]? Tags);
+
+internal sealed record ApplyTemplateBody(string? Name);
 internal sealed record ColorBody(string? ColorHex);
 internal sealed record SettingsBody(string? VaultPath, string? BackupPath, int BackupIntervalHours, string? Theme, bool NotificationsEnabled);
 internal sealed record RestoreBody(string? FilePath);

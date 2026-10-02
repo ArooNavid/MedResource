@@ -221,7 +221,7 @@ public sealed class NoteService : INoteService
     {
         var vault = _settings.Current.VaultPath;
         var rel = Path.GetRelativePath(vault, fullPath).Replace('\\', '/');
-        if (rel.StartsWith(".staging", StringComparison.OrdinalIgnoreCase))
+        if (AppConstants.IsIgnoredVaultRelativePath(rel))
             return;
 
         var markdown = await File.ReadAllTextAsync(fullPath, ct);

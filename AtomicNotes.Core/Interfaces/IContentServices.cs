@@ -55,6 +55,16 @@ public interface IPdfImportService
     Task RecoverStagedAsync(CancellationToken ct = default);
 }
 
+public interface ITemplateService
+{
+    Task<IReadOnlyList<NoteTemplate>> ListAsync(CancellationToken ct = default);
+    Task<NoteTemplate> CreateAsync(string title, string content, IEnumerable<string> tags, CancellationToken ct = default);
+    Task DeleteAsync(string name, CancellationToken ct = default);
+    Task<RenderedTemplate> RenderAsync(string name, string? title, CancellationToken ct = default);
+    Task<RenderedTemplate?> RenderDailyAsync(DateTime day, CancellationToken ct = default);
+    Task<Note> ApplyAsync(long noteId, long editorUserId, string name, CancellationToken ct = default);
+}
+
 public interface IDailyNoteService
 {
     /// <summary>
