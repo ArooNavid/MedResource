@@ -188,6 +188,8 @@ function renderNotes() {
         <div class="row" style="margin-bottom:8px">
           <input id="note-filter" placeholder="فیلتر عنوان" value="${escapeHtml(filter)}" />
           <button class="primary" id="new-note">جدید</button>
+          <button class="ghost" type="button" id="import-md">ورود .md</button>
+          <input id="import-md-file" type="file" accept=".md,text/markdown" hidden />
         </div>
         <div class="list" id="note-list">
           ${visible.map((note) => `<button class="note-item ${state.current?.note.id === note.id ? "active" : ""}" data-id="${note.id}">
@@ -204,6 +206,7 @@ function renderNotes() {
           </select>
           <button class="ghost" type="button" id="apply-template" ${state.current?.note?.id ? "" : "disabled"}>درج قالب</button>
           <button class="ghost" type="button" id="toggle-preview" ${state.current ? "" : "disabled"}>${state.showPreview ? "ویرایش" : "پیش‌نمایش"}</button>
+          <button class="ghost" type="button" id="export-md" ${state.current?.note?.id ? "" : "disabled"}>فایل .md</button>
           <button class="ghost" type="button" id="export-pdf" ${state.current ? "" : "disabled"}>PDF</button>
           <button class="danger" type="button" id="delete-note" ${state.current ? "" : "disabled"}>حذف</button>
         </div></div>
@@ -228,7 +231,25 @@ function renderNotes() {
   $("note-content").oninput = schedulePreview;
   if (state.showPreview) refreshPreview();
   $("delete-note").onclick = deleteNote;
+  $("export-md").onclick = exportMarkdown;
   $("export-pdf").onclick = exportPdf;
+  $("import-md").onclick = () => $("import-md-file").click();
+  $("import-md-file").onchange = async () => {
+    const file = $("import-md-file").files?.[0];
+    if (!file) return;
+    const body = new FormData();
+    body.append("file", file);
+    try {
+      const note = await api("/api/notes/import-markdown", { method: "POST", body });
+      toast("فایل مارک‌داون وارد شد.");
+      await loadNotes();
+      await openNote(note.id);
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      $("import-md-file").value = "";
+    }
+  };
   $("links-panel").querySelectorAll("[data-go]").forEach((button) => { button.onclick = () => openNote(button.dataset.go); });
 }
 
@@ -466,6 +487,11 @@ async function deleteNote() {
 function exportPdf() {
   if (!state.current?.note?.id) return;
   window.location = `/api/notes/${state.current.note.id}/pdf`;
+}
+
+function exportMarkdown() {
+  if (!state.current?.note?.id) return;
+  window.location = `/api/notes/${state.current.note.id}/markdown`;
 }
 
 let searchTimer;
@@ -737,6 +763,13 @@ async function loadSync() {
 
 function renderImport() {
   $("view-import").innerHTML = `
+    <div class="card" style="margin-bottom:14px">
+      <h3>ورود فایل مارک‌داون</h3>
+      <p class="muted" style="margin:8px 0 14px">یک فایل .md با frontmatter YAML به خزانه اضافه می‌شود و همان‌جا در پایگاه‌داده ثبت می‌شود.</p>
+      <input id="import-md-page" type="file" accept=".md,text/markdown" />
+      <div class="row" style="margin-top:12px"><button class="primary" id="import-md-go">ورود مارک‌داون</button></div>
+      <p id="import-md-result" class="muted" style="margin-top:12px"></p>
+    </div>
     <div class="card">
       <h3>ورود PDF به خزانه</h3>
       <p class="muted" style="margin:8px 0 14px">فایل در پوشهٔ staging نوشته می‌شود، سپس با وضعیت Committed به خزانه منتقل می‌شود. عمق درخت از ۱۵ بیشتر نمی‌شود. فایل تکراری با درهم‌ساز SHA-256 رد می‌شود.</p>
@@ -744,6 +777,20 @@ function renderImport() {
       <div class="row" style="margin-top:12px"><button class="primary" id="import-go">شروع ورود</button></div>
       <div id="import-results" class="list" style="margin-top:12px"></div>
     </div>`;
+  $("import-md-go").onclick = async () => {
+    const file = $("import-md-page").files?.[0];
+    if (!file) return toast("فایل .md انتخاب نشده.");
+    const body = new FormData();
+    body.append("file", file);
+    try {
+      const note = await api("/api/notes/import-markdown", { method: "POST", body });
+      $("import-md-result").textContent = `وارد شد: ${note.title}`;
+      toast("مارک‌داون وارد شد.");
+    } catch (error) {
+      $("import-md-result").textContent = error.message;
+      toast(error.message);
+    }
+  };
   $("import-go").onclick = async () => {
     const files = $("pdf-files").files;
     if (!files.length) return toast("فایلی انتخاب نشده.");

@@ -47,6 +47,7 @@ builder.Services.AddSingleton<ITemplateService, TemplateService>();
 builder.Services.AddSingleton<IDailyNoteService, DailyNoteService>();
 builder.Services.AddSingleton<ITaskService, TaskService>();
 builder.Services.AddSingleton<IMarkdownPreviewService, MarkdownPreviewService>();
+builder.Services.AddSingleton<INoteMarkdownService, NoteMarkdownService>();
 builder.Services.AddSingleton<VaultWatcherService>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -308,6 +309,39 @@ app.MapDelete("/api/notes/{id:long}", async (long id, INoteService notes) =>
 {
     await notes.DeleteAsync(id);
     return Results.Ok();
+}).RequireAuthorization();
+
+app.MapGet("/api/notes/{id:long}/markdown", async (long id, INoteMarkdownService markdown) =>
+{
+    try
+    {
+        var exported = await markdown.ExportAsync(id);
+        return Results.File(
+            System.Text.Encoding.UTF8.GetBytes(exported.Content),
+            "text/markdown; charset=utf-8",
+            exported.FileName);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
+app.MapPost("/api/notes/import-markdown", async (HttpRequest request, HttpContext http, INoteMarkdownService markdown) =>
+{
+    var file = request.Form.Files.FirstOrDefault();
+    if (file is null || file.Length == 0)
+        return Results.BadRequest(new { error = "فایل .md انتخاب نشده است." });
+    try
+    {
+        await using var stream = file.OpenReadStream();
+        var note = await markdown.ImportAsync(UserId(http.User), file.FileName, stream);
+        return Results.Ok(note);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
 }).RequireAuthorization();
 
 app.MapGet("/api/notes/{id:long}/pdf", async (long id, INoteService notes, IPdfExportService pdf) =>

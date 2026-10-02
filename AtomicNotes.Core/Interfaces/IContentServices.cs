@@ -65,6 +65,12 @@ public interface ITemplateService
     Task<Note> ApplyAsync(long noteId, long editorUserId, string name, CancellationToken ct = default);
 }
 
+public interface INoteMarkdownService
+{
+    Task<MarkdownExportResult> ExportAsync(long noteId, CancellationToken ct = default);
+    Task<Note> ImportAsync(long ownerUserId, string fileName, Stream markdown, CancellationToken ct = default);
+}
+
 public interface IMarkdownPreviewService
 {
     Task<string> RenderAsync(string markdown, long? noteId = null, CancellationToken ct = default);
