@@ -49,6 +49,7 @@ public interface IPdfExportService
 public interface INoteService
 {
     Task<IReadOnlyList<Note>> ListAsync(CancellationToken ct = default);
+    Task<Note?> GetRandomAsync(CancellationToken ct = default);
     Task<Note?> GetAsync(long id, CancellationToken ct = default);
     Task<Note> CreateAsync(long ownerUserId, string title, string content, long? parentNoteId, IEnumerable<string> tags, IEnumerable<string>? aliases = null, CancellationToken ct = default);
     Task<Note> UpdateAsync(long id, long editorUserId, string title, string content, IEnumerable<string> tags, IEnumerable<string>? aliases = null, CancellationToken ct = default);
