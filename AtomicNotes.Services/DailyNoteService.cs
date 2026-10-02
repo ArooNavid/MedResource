@@ -52,7 +52,7 @@ public sealed class DailyNoteService : IDailyNoteService
 
             ## کارها
 
-            - 
+            - [ ] 
 
             ## یادداشت
 

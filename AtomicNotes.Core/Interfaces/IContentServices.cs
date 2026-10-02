@@ -65,6 +65,12 @@ public interface ITemplateService
     Task<Note> ApplyAsync(long noteId, long editorUserId, string name, CancellationToken ct = default);
 }
 
+public interface ITaskService
+{
+    Task<TaskListSummary> ListAsync(bool? openOnly = null, CancellationToken ct = default);
+    Task<Note> ToggleAsync(long noteId, long editorUserId, int lineIndex, bool done, CancellationToken ct = default);
+}
+
 public interface IDailyNoteService
 {
     /// <summary>

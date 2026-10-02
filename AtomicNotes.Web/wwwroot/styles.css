@@ -101,7 +101,11 @@ main { padding: 28px; }
 }
 .toast { background: #e7f3ef; border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; }
 .grid { display: grid; gap: 14px; }
-.stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.stats { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.task-row { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.task-check { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; flex: 1; }
+.task-check span.done { color: var(--muted); text-decoration: line-through; }
+.ghost.active-filter { border-color: var(--teal); background: #f3faf8; }
 .card {
   background: var(--card);
   border: 1px solid var(--line);

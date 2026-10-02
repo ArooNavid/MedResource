@@ -9,7 +9,8 @@ const state = {
   tagFilter: [],
   graph: null,
   sim: null,
-  journal: null
+  journal: null,
+  taskFilter: "open"
 };
 
 const $ = (id) => document.getElementById(id);
@@ -18,6 +19,7 @@ const titles = {
   notes: ["خزانه", "یادداشت‌ها"],
   templates: ["الگو", "قالب‌ها"],
   journal: ["تهران", "دفتر روزانه"],
+  tasks: ["چک‌لیست", "کارها"],
   search: ["متن کامل", "جستجو"],
   tags: ["ابر", "برچسب‌ها"],
   graph: ["پیوندها", "گراف نیرو"],
@@ -85,7 +87,7 @@ function openView(name) {
   const [kicker, title] = titles[name];
   $("view-kicker").textContent = kicker;
   $("view-title").textContent = title;
-  const loaders = { dashboard: loadDashboard, notes: loadNotes, templates: loadTemplates, journal: loadJournal, search: renderSearch, tags: loadTags, graph: loadGraph, sync: loadSync, import: renderImport, backups: loadBackups, settings: loadSettings };
+  const loaders = { dashboard: loadDashboard, notes: loadNotes, templates: loadTemplates, journal: loadJournal, tasks: loadTasks, search: renderSearch, tags: loadTags, graph: loadGraph, sync: loadSync, import: renderImport, backups: loadBackups, settings: loadSettings };
   loaders[name]();
 }
 
@@ -99,6 +101,7 @@ function highlight(snippet) {
 
 async function loadDashboard() {
   const data = await api("/api/dashboard");
+  const tasks = await api("/api/tasks?open=true").catch(() => ({ openCount: 0, doneCount: 0 }));
   const today = data.today || {};
   const comparison = data.isAdmin ? `
     <div class="card" style="grid-column: 1 / -1">
@@ -122,6 +125,7 @@ async function loadDashboard() {
       <article class="card"><span>یادداشت امروز</span><strong>${today.noteCreateCount ?? 0}</strong></article>
       <article class="card"><span>PDF امروز</span><strong>${today.pdfImportCount ?? 0}</strong></article>
       <article class="card"><span>نشست‌ها</span><strong>${today.sessionCount ?? 0}</strong></article>
+      <article class="card"><span>کار باز</span><strong>${tasks.openCount ?? 0}</strong></article>
       <article class="card"><span>تاریخ تهران</span><strong style="font-size:18px">${escapeHtml(data.tehranDate)}</strong></article>
       ${comparison}
       <div class="card" style="grid-column: 1 / -1">
@@ -223,6 +227,60 @@ async function openDailyDate(date) {
   const result = await api("/api/daily", { method: "POST", body: date ? { date } : {} });
   toast(result.created ? "یادداشت روز ساخته شد." : "یادداشت روز باز شد.");
   await openNote(result.note.id);
+}
+
+async function loadTasks() {
+  const filter = state.taskFilter || "open";
+  const query = filter === "all" ? "" : filter === "open" ? "?open=true" : "?open=false";
+  const data = await api("/api/tasks" + query);
+  const rows = (data.items || []).map((item) => `
+    <article class="card task-row">
+      <label class="task-check">
+        <input type="checkbox" data-task-note="${item.noteId}" data-task-line="${item.lineIndex}" ${item.isDone ? "checked" : ""} />
+        <span class="${item.isDone ? "done" : ""}">${escapeHtml(item.text || "بدون متن")}</span>
+      </label>
+      <button class="ghost" type="button" data-open-note="${item.noteId}">${escapeHtml(item.noteTitle)}</button>
+    </article>`).join("") || `<p class="muted">کار ${filter === "open" ? "باز" : filter === "done" ? "تمام‌شده" : ""}ی نیست.</p>`;
+  $("view-tasks").innerHTML = `
+    <div class="card" style="max-width:820px">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div>
+          <h3 style="margin:0">چک‌لیست مارک‌داون</h3>
+          <p class="muted" style="margin:6px 0 0">باز ${data.openCount} · انجام‌شده ${data.doneCount}</p>
+        </div>
+        <div class="row">
+          <button class="ghost ${filter === "open" ? "active-filter" : ""}" type="button" data-task-filter="open">باز</button>
+          <button class="ghost ${filter === "done" ? "active-filter" : ""}" type="button" data-task-filter="done">انجام‌شده</button>
+          <button class="ghost ${filter === "all" ? "active-filter" : ""}" type="button" data-task-filter="all">همه</button>
+        </div>
+      </div>
+      <div class="list">${rows}</div>
+    </div>`;
+  $("view-tasks").querySelectorAll("[data-task-filter]").forEach((button) => {
+    button.onclick = () => { state.taskFilter = button.dataset.taskFilter; loadTasks(); };
+  });
+  $("view-tasks").querySelectorAll("[data-open-note]").forEach((button) => {
+    button.onclick = () => openNote(button.dataset.openNote);
+  });
+  $("view-tasks").querySelectorAll("input[data-task-note]").forEach((input) => {
+    input.onchange = async () => {
+      try {
+        await api("/api/tasks/toggle", {
+          method: "POST",
+          body: {
+            noteId: Number(input.dataset.taskNote),
+            lineIndex: Number(input.dataset.taskLine),
+            done: input.checked
+          }
+        });
+        toast(input.checked ? "انجام شد." : "دوباره باز شد.");
+        loadTasks();
+      } catch (error) {
+        toast(error.message);
+        input.checked = !input.checked;
+      }
+    };
+  });
 }
 
 async function loadJournal() {
