@@ -35,6 +35,7 @@ public interface INoteLinkService
     Task<int> GetBacklinkCountAsync(int noteId, CancellationToken ct = default);
     Task NullifyLinksForOldTitleAsync(string oldTitle, CancellationToken ct = default);
     Task RemapTargetNoteAsync(int oldTargetNoteId, int newTargetNoteId, CancellationToken ct = default);
+    Task<IReadOnlyList<UnresolvedLink>> ListUnresolvedAsync(CancellationToken ct = default);
 }
 
 public interface IGraphService

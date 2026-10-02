@@ -29,6 +29,7 @@ const titles = {
   search: ["متن کامل", "جستجو"],
   tags: ["ابر", "برچسب‌ها"],
   graph: ["پیوندها", "گراف نیرو"],
+  dangling: ["wikilink", "پیوندهای شکسته"],
   sync: ["Obsidian", "همگام‌سازی خزانه"],
   import: ["PDF", "ورود اتمی"],
   backups: ["بایگانی", "پشتیبان‌گیری"],
@@ -93,7 +94,7 @@ function openView(name) {
   const [kicker, title] = titles[name];
   $("view-kicker").textContent = kicker;
   $("view-title").textContent = title;
-  const loaders = { dashboard: loadDashboard, notes: loadNotes, trash: loadTrash, templates: loadTemplates, journal: loadJournal, tasks: loadTasks, search: renderSearch, tags: loadTags, graph: loadGraph, sync: loadSync, import: renderImport, backups: loadBackups, settings: loadSettings };
+  const loaders = { dashboard: loadDashboard, notes: loadNotes, trash: loadTrash, templates: loadTemplates, journal: loadJournal, tasks: loadTasks, search: renderSearch, tags: loadTags, graph: loadGraph, dangling: loadDangling, sync: loadSync, import: renderImport, backups: loadBackups, settings: loadSettings };
   loaders[name]();
 }
 
@@ -122,6 +123,7 @@ async function loadDashboard() {
   const data = await api("/api/dashboard");
   const tasks = await api("/api/tasks?open=true").catch(() => ({ openCount: 0, doneCount: 0 }));
   const trash = await api("/api/trash").catch(() => []);
+  const dangling = await api("/api/links/unresolved").catch(() => []);
   const today = data.today || {};
   const comparison = data.isAdmin ? `
     <div class="card" style="grid-column: 1 / -1">
@@ -147,6 +149,7 @@ async function loadDashboard() {
       <article class="card"><span>نشست‌ها</span><strong>${today.sessionCount ?? 0}</strong></article>
       <article class="card"><span>کار باز</span><strong>${tasks.openCount ?? 0}</strong></article>
       <article class="card"><span>سطل زباله</span><strong>${trash.length ?? 0}</strong></article>
+      <article class="card link-card" data-view-jump="dangling"><span>پیوند شکسته</span><strong>${dangling.length ?? 0}</strong></article>
       <article class="card"><span>تاریخ تهران</span><strong style="font-size:18px">${escapeHtml(data.tehranDate)}</strong></article>
       ${comparison}
       <div class="card" style="grid-column: 1 / -1">
@@ -164,6 +167,27 @@ async function loadDashboard() {
     </div>`;
   $("view-dashboard").querySelectorAll("[data-open]").forEach((button) => {
     button.onclick = () => { openView("notes"); setTimeout(() => openNote(button.dataset.open), 30); };
+  });
+  $("view-dashboard").querySelectorAll("[data-view-jump]").forEach((button) => {
+    button.onclick = () => openView(button.dataset.viewJump);
+  });
+}
+
+async function loadDangling() {
+  const items = await api("/api/links/unresolved");
+  $("view-dangling").innerHTML = `
+    <div class="card" style="max-width:820px">
+      <h3>پیوندهای شکسته</h3>
+      <p class="muted">این [[wikilink]]‌ها به یادداشتی با عنوان یا نام مستعار مطابق وصل نشده‌اند.</p>
+      <div class="list" style="margin-top:12px">
+        ${items.map((row) => `<article class="note-item trash-row">
+          <div><code>[[${escapeHtml(row.rawTarget)}]]</code><div class="muted">در «${escapeHtml(row.sourceTitle)}»</div></div>
+          <button class="ghost" type="button" data-open-note="${row.sourceNoteId}">باز کردن</button>
+        </article>`).join("") || `<p class="muted">پیوند شکسته‌ای نیست.</p>`}
+      </div>
+    </div>`;
+  $("view-dangling").querySelectorAll("[data-open-note]").forEach((button) => {
+    button.onclick = () => openNote(button.dataset.openNote);
   });
 }
 

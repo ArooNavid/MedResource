@@ -476,6 +476,9 @@ app.MapPut("/api/tags/{id:int}/color", async (int id, ColorBody body, ITagServic
     return Results.Ok();
 }).RequireAuthorization();
 
+app.MapGet("/api/links/unresolved", async (INoteLinkService links) =>
+    Results.Ok(await links.ListUnresolvedAsync())).RequireAuthorization();
+
 app.MapGet("/api/graph", async (IGraphService graph) =>
 {
     var (nodes, edges) = await graph.LoadGraphAsync();
