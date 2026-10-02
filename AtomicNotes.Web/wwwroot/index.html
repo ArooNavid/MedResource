@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>یادداشت‌های اتمی</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <section id="auth" class="auth">
+    <div class="auth-card">
+      <div class="brand">
+        <span class="mark" aria-hidden="true"></span>
+        <div>
+          <p class="eyebrow">AtomicNotes</p>
+          <h1>یادداشت‌های اتمی</h1>
+        </div>
+      </div>
+      <p class="lede">هر یادداشت یک واحد کوچک است. پیوندها، برچسب‌ها و گراف، خزانهٔ Obsidian را به هم وصل می‌کنند.</p>
+      <form id="auth-form">
+        <label>نام کاربری<input id="username" autocomplete="username" required /></label>
+        <label>رمز عبور<input id="password" type="password" autocomplete="current-password" required /></label>
+        <label id="display-wrap" hidden>نام نمایشی<input id="display-name" /></label>
+        <p id="auth-error" class="error" hidden></p>
+        <div class="row">
+          <button class="primary" type="submit" id="auth-submit">ورود</button>
+          <button class="ghost" type="button" id="auth-toggle">حساب تازه</button>
+        </div>
+      </form>
+      <p class="hint">اولین حساب، مدیر می‌شود و آمار همه را می‌بیند. حساب‌های بعدی فقط آمار خودشان را دارند.</p>
+    </div>
+  </section>
+
+  <div id="app" class="shell" hidden>
+    <aside class="side">
+      <div class="brand compact">
+        <span class="mark"></span>
+        <strong>یادداشت‌های اتمی</strong>
+      </div>
+      <nav>
+        <button data-view="dashboard" class="active">داشبورد</button>
+        <button data-view="notes">یادداشت‌ها</button>
+        <button data-view="trash">سطل زباله</button>
+        <button data-view="templates">قالب‌ها</button>
+        <button data-view="journal">دفتر روزانه</button>
+        <button data-view="tasks">کارها</button>
+        <button data-view="search">جستجو</button>
+        <button data-view="tags">برچسب‌ها</button>
+        <button data-view="graph">گراف</button>
+        <button data-view="sync">همگام‌سازی</button>
+        <button data-view="import">ورود PDF</button>
+        <button data-view="backups">پشتیبان</button>
+        <button data-view="settings">تنظیمات</button>
+      </nav>
+      <div class="who">
+        <div>
+          <strong id="who-name"></strong>
+          <span id="who-role" class="pill"></span>
+        </div>
+        <button id="logout" class="ghost">خروج</button>
+      </div>
+    </aside>
+    <main>
+      <header class="top">
+        <div>
+          <p class="eyebrow" id="view-kicker">امروز</p>
+          <h2 id="view-title">داشبورد</h2>
+        </div>
+        <div class="row" style="align-items:center">
+          <button class="ghost" id="quick-open-btn" type="button" title="Ctrl+K">باز کردن سریع</button>
+          <button class="primary" id="open-daily" type="button">یادداشت امروز</button>
+          <div class="clock" id="clock">--</div>
+        </div>
+      </header>
+      <p id="toast" class="toast" hidden></p>
+
+      <section id="view-dashboard" class="view"></section>
+      <section id="view-notes" class="view" hidden></section>
+      <section id="view-trash" class="view" hidden></section>
+      <section id="view-templates" class="view" hidden></section>
+      <section id="view-journal" class="view" hidden></section>
+      <section id="view-tasks" class="view" hidden></section>
+      <section id="view-search" class="view" hidden></section>
+      <section id="view-tags" class="view" hidden></section>
+      <section id="view-graph" class="view" hidden></section>
+      <section id="view-sync" class="view" hidden></section>
+      <section id="view-import" class="view" hidden></section>
+      <section id="view-backups" class="view" hidden></section>
+      <section id="view-settings" class="view" hidden></section>
+    </main>
+  </div>
+  <div id="quick-open" class="quick-open" hidden>
+    <div class="quick-open-backdrop" id="quick-open-backdrop"></div>
+    <div class="quick-open-panel card">
+      <input id="quick-open-input" placeholder="نام یادداشت را بنویسید…" autocomplete="off" />
+      <div id="quick-open-results" class="list"></div>
+      <p class="muted" style="margin:10px 0 0;font-size:12px">Ctrl+K · Esc</p>
+    </div>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>
