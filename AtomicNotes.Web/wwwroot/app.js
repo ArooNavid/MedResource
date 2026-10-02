@@ -242,6 +242,11 @@ function renderNotes() {
           </select>
           <button class="ghost" type="button" id="apply-template" ${state.current?.note?.id ? "" : "disabled"}>درج قالب</button>
           <button class="ghost" type="button" id="duplicate-note" ${state.current?.note?.id ? "" : "disabled"}>رونوشت</button>
+          <select id="merge-source" style="max-width:140px" ${state.current?.note?.id ? "" : "disabled"}>
+            <option value="">ادغام از…</option>
+            ${(state.notes || []).filter((note) => note.id !== state.current?.note?.id).map((note) => `<option value="${note.id}">${escapeHtml(note.title)}</option>`).join("")}
+          </select>
+          <button class="ghost" type="button" id="merge-note" ${state.current?.note?.id ? "" : "disabled"}>ادغام</button>
           <button class="ghost" type="button" id="toggle-pin" ${state.current?.note?.id ? "" : "disabled"}>${state.current?.note?.pinned ? "برداشتن سنجاق" : "سنجاق"}</button>
           <button class="ghost" type="button" id="toggle-preview" ${state.current ? "" : "disabled"}>${state.showPreview ? "ویرایش" : "پیش‌نمایش"}</button>
           <button class="ghost" type="button" id="sync-path" ${state.current?.note?.id ? "" : "disabled"}>هم‌نام فایل</button>
@@ -291,6 +296,24 @@ function renderNotes() {
   $("view-notes").querySelectorAll("[data-id]").forEach((button) => { button.onclick = () => openNote(button.dataset.id); });
   $("editor").onsubmit = saveNote;
   $("apply-template").onclick = applyTemplate;
+  $("merge-note").onclick = async () => {
+    if (!state.current?.note?.id) return;
+    const sourceId = Number($("merge-source").value);
+    if (!sourceId) {
+      toast("یادداشت مبدأ را انتخاب کنید.");
+      return;
+    }
+    if (!confirm("متن یادداشت انتخاب‌شده به این یادداشت اضافه و مبدأ به سطل زباله می‌رود. ادامه؟")) return;
+    try {
+      const saved = await api(`/api/notes/${state.current.note.id}/merge/${sourceId}`, { method: "POST" });
+      toast("یادداشت‌ها ادغام شد.");
+      state.current.note = saved;
+      await loadNotes();
+      await openNote(saved.id);
+    } catch (error) {
+      toast(error.message);
+    }
+  };
   $("duplicate-note").onclick = async () => {
     if (!state.current?.note?.id) return;
     try {

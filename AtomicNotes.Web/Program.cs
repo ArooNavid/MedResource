@@ -214,6 +214,18 @@ app.MapPost("/api/notes", async (NoteBody body, HttpContext http, INoteService n
     }
 }).RequireAuthorization();
 
+app.MapPost("/api/notes/{targetId:long}/merge/{sourceId:long}", async (long targetId, long sourceId, HttpContext http, INoteService notes) =>
+{
+    try
+    {
+        return Results.Ok(await notes.MergeAsync(targetId, sourceId, UserId(http.User)));
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
 app.MapPost("/api/notes/{id:long}/duplicate", async (long id, HttpContext http, INoteService notes) =>
 {
     try

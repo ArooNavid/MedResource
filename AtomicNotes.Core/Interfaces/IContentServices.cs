@@ -34,6 +34,7 @@ public interface INoteLinkService
     Task ResolveLinksForTitleAsync(string noteTitle, int noteId, CancellationToken ct = default);
     Task<int> GetBacklinkCountAsync(int noteId, CancellationToken ct = default);
     Task NullifyLinksForOldTitleAsync(string oldTitle, CancellationToken ct = default);
+    Task RemapTargetNoteAsync(int oldTargetNoteId, int newTargetNoteId, CancellationToken ct = default);
 }
 
 public interface IGraphService
@@ -65,6 +66,7 @@ public interface INoteService
     Task<Note> SetParentAsync(long id, long? parentNoteId, CancellationToken ct = default);
     Task<Note> SyncRelPathToTitleAsync(long id, CancellationToken ct = default);
     Task<Note> DuplicateAsync(long id, long ownerUserId, CancellationToken ct = default);
+    Task<Note> MergeAsync(long targetId, long sourceId, long editorUserId, CancellationToken ct = default);
 }
 
 public interface IPdfImportService
