@@ -10,8 +10,11 @@ const state = {
   graph: null,
   sim: null,
   journal: null,
-  taskFilter: "open"
+  taskFilter: "open",
+  showPreview: false
 };
+
+let previewTimer;
 
 const $ = (id) => document.getElementById(id);
 const titles = {
@@ -152,6 +155,30 @@ async function loadNotes() {
   }
 }
 
+async function refreshPreview() {
+  const panel = $("note-preview");
+  if (!state.showPreview || !panel) return;
+  const content = $("note-content")?.value ?? "";
+  const noteId = state.current?.note?.id ?? null;
+  try {
+    const data = await api("/api/markdown/preview", { method: "POST", body: { content, noteId } });
+    panel.innerHTML = data.html || "";
+    panel.querySelectorAll('a[href^="#note-"]').forEach((link) => {
+      link.onclick = (event) => {
+        event.preventDefault();
+        openNote(link.getAttribute("href").slice(6));
+      };
+    });
+  } catch {
+    panel.innerHTML = `<p class="muted">پیش‌نمایش در دسترس نیست.</p>`;
+  }
+}
+
+function schedulePreview() {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => { refreshPreview(); }, 400);
+}
+
 function renderNotes() {
   const filter = ($("note-filter")?.value || "").trim();
   const visible = state.notes.filter((note) => !filter || note.title.includes(filter));
@@ -176,12 +203,18 @@ function renderNotes() {
             ${(state.templates || []).map((template) => `<option value="${escapeHtml(template.name)}">${escapeHtml(template.title)}</option>`).join("")}
           </select>
           <button class="ghost" type="button" id="apply-template" ${state.current?.note?.id ? "" : "disabled"}>درج قالب</button>
+          <button class="ghost" type="button" id="toggle-preview" ${state.current ? "" : "disabled"}>${state.showPreview ? "ویرایش" : "پیش‌نمایش"}</button>
           <button class="ghost" type="button" id="export-pdf" ${state.current ? "" : "disabled"}>PDF</button>
           <button class="danger" type="button" id="delete-note" ${state.current ? "" : "disabled"}>حذف</button>
         </div></div>
         <label>عنوان<input id="note-title" value="${escapeHtml(state.current?.note.title || "")}" /></label>
         <label>برچسب‌ها، با ویرگول<input id="note-tags" value="${escapeHtml((state.current?.tags || []).map((tag) => tag.name).join("، "))}" /></label>
-        <label>متن مارک‌داون<textarea id="note-content">${escapeHtml(state.current?.note.content || "")}</textarea></label>
+        <label>متن مارک‌داون
+          <div class="editor-split ${state.showPreview ? "preview-on" : ""}">
+            <textarea id="note-content">${escapeHtml(state.current?.note.content || "")}</textarea>
+            <div id="note-preview" class="markdown-preview" ${state.showPreview ? "" : "hidden"}></div>
+          </div>
+        </label>
         <button class="primary" type="submit">ذخیره</button>
       </form>
       <aside class="card" id="links-panel">${linksHtml()}</aside>
@@ -191,6 +224,9 @@ function renderNotes() {
   $("view-notes").querySelectorAll("[data-id]").forEach((button) => { button.onclick = () => openNote(button.dataset.id); });
   $("editor").onsubmit = saveNote;
   $("apply-template").onclick = applyTemplate;
+  $("toggle-preview").onclick = () => { state.showPreview = !state.showPreview; renderNotes(); };
+  $("note-content").oninput = schedulePreview;
+  if (state.showPreview) refreshPreview();
   $("delete-note").onclick = deleteNote;
   $("export-pdf").onclick = exportPdf;
   $("links-panel").querySelectorAll("[data-go]").forEach((button) => { button.onclick = () => openNote(button.dataset.go); });
