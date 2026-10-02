@@ -33,9 +33,8 @@ public sealed class TaskTests
             Salt = "y",
             Role = UserRole.User
         });
-        var tags = new TagService(database.Factory);
-        var notes = new NoteService(database.Factory, settings, tags, new NoteLinkService(database.Factory), database.Stats, new VaultWriteGuard());
-        var tasks = new TaskService(notes, tags);
+        var (notes, _, aliases, tags, _) = NoteTestFactory.CreateBundle(database.Factory, settings, database.Stats);
+        var tasks = new TaskService(notes, tags, aliases);
 
         var note = await notes.CreateAsync(owner, "کارها", """
             ## کارها

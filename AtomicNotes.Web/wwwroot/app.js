@@ -237,6 +237,7 @@ function renderNotes() {
         </div></div>
         <label>عنوان<input id="note-title" value="${escapeHtml(state.current?.note.title || "")}" /></label>
         <label>برچسب‌ها، با ویرگول<input id="note-tags" value="${escapeHtml((state.current?.tags || []).map((tag) => tag.name).join("، "))}" /></label>
+        <label>نام‌های مستعار برای [[پیوند]]<input id="note-aliases" placeholder="مثلاً: نام کوتاه، عنوان قدیم" value="${escapeHtml((state.current?.aliases || []).join("، "))}" /></label>
         <label>والد در درخت
           <select id="note-parent" ${state.current?.note?.id ? "" : "disabled"}>
             <option value="">— ریشه —</option>
@@ -266,7 +267,7 @@ function renderNotes() {
       toast(error.message);
     }
   });
-  $("new-note").onclick = () => { state.current = { note: { title: "", content: "" }, tags: [], outgoing: [], backlinks: [] }; renderNotes(); };
+  $("new-note").onclick = () => { state.current = { note: { title: "", content: "" }, tags: [], aliases: [], outgoing: [], backlinks: [] }; renderNotes(); };
   $("view-notes").querySelectorAll("[data-id]").forEach((button) => { button.onclick = () => openNote(button.dataset.id); });
   $("editor").onsubmit = saveNote;
   $("apply-template").onclick = applyTemplate;
@@ -551,7 +552,8 @@ async function saveNote(event) {
   const body = {
     title: $("note-title").value,
     content: $("note-content").value,
-    tags: $("note-tags").value.split(/[,،]/).map((item) => item.trim()).filter(Boolean)
+    tags: $("note-tags").value.split(/[,،]/).map((item) => item.trim()).filter(Boolean),
+    aliases: $("note-aliases").value.split(/[,،]/).map((item) => item.trim()).filter(Boolean)
   };
   const saved = state.current?.note?.id
     ? await api(`/api/notes/${state.current.note.id}`, { method: "PUT", body })

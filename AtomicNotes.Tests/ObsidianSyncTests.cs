@@ -4,6 +4,8 @@ using AtomicNotes.Services;
 using AtomicNotes.Tests.Support;
 using Dapper;
 
+using AtomicNotes.Tests.Support;
+
 namespace AtomicNotes.Tests;
 
 public sealed class ObsidianSyncTests
@@ -35,11 +37,8 @@ public sealed class ObsidianSyncTests
             Salt = "y",
             Role = UserRole.User
         });
-        var tags = new TagService(database.Factory);
-        var links = new NoteLinkService(database.Factory);
-        var guard = new VaultWriteGuard();
-        var notes = new NoteService(database.Factory, settings, tags, links, database.Stats, guard);
-        var sync = new ObsidianSyncService(database.Factory, settings, notes, tags, guard, database.Clock);
+        var (notes, _, aliases, tags, guard) = NoteTestFactory.CreateBundle(database.Factory, settings, database.Stats);
+        var sync = new ObsidianSyncService(database.Factory, settings, notes, tags, aliases, guard, database.Clock);
 
         var external = Path.Combine(vault, "از-ابسیدین.md");
         await File.WriteAllTextAsync(external, """

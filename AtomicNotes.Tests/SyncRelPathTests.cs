@@ -26,7 +26,7 @@ public sealed class SyncRelPathTests
             NotificationsEnabled = true
         });
         var tags = new TagService(database.Factory);
-        var notes = new NoteService(database.Factory, settings, tags, new NoteLinkService(database.Factory), database.Stats, new VaultWriteGuard());
+        var notes = NoteTestFactory.Create(database.Factory, settings, database.Stats, tags);
         var owner = await database.Users.CreateAsync(new User
         {
             Username = "rename",

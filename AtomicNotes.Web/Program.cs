@@ -32,6 +32,7 @@ builder.Services.AddSingleton<ITehranClockService, TehranClockService>();
 builder.Services.AddSingleton<IActivityStatsService, ActivityStatsService>();
 builder.Services.AddSingleton<ISearchService, SearchService>();
 builder.Services.AddSingleton<ITagService, TagService>();
+builder.Services.AddSingleton<IAliasService, AliasService>();
 builder.Services.AddSingleton<INoteLinkService, NoteLinkService>();
 builder.Services.AddSingleton<IGraphService, GraphService>();
 builder.Services.AddSingleton<IPdfExportService, PdfExportService>();
@@ -182,22 +183,23 @@ app.MapGet("/api/notes", async (string? tagIds, INoteService notes, ITagService 
     return Results.Ok(list);
 }).RequireAuthorization();
 
-app.MapGet("/api/notes/{id:long}", async (long id, INoteService notes, ITagService tags, INoteLinkService links) =>
+app.MapGet("/api/notes/{id:long}", async (long id, INoteService notes, ITagService tags, IAliasService aliases, INoteLinkService links) =>
 {
     var note = await notes.GetAsync(id);
     if (note is null)
         return Results.NotFound();
     var noteTags = await tags.GetTagsForNoteAsync((int)id);
+    var noteAliases = await aliases.GetAliasesForNoteAsync((int)id);
     var outgoing = await links.GetOutgoingLinksAsync((int)id);
     var backlinks = await links.GetBacklinksAsync((int)id);
-    return Results.Ok(new { note, tags = noteTags, outgoing, backlinks });
+    return Results.Ok(new { note, tags = noteTags, aliases = noteAliases, outgoing, backlinks });
 }).RequireAuthorization();
 
 app.MapPost("/api/notes", async (NoteBody body, HttpContext http, INoteService notes) =>
 {
     try
     {
-        var note = await notes.CreateAsync(UserId(http.User), body.Title ?? "", body.Content ?? "", body.ParentNoteId, body.Tags ?? Array.Empty<string>());
+        var note = await notes.CreateAsync(UserId(http.User), body.Title ?? "", body.Content ?? "", body.ParentNoteId, body.Tags ?? Array.Empty<string>(), body.Aliases ?? Array.Empty<string>());
         return Results.Ok(note);
     }
     catch (InvalidOperationException ex)
@@ -278,7 +280,7 @@ app.MapPut("/api/notes/{id:long}", async (long id, NoteBody body, HttpContext ht
 {
     try
     {
-        var note = await notes.UpdateAsync(id, UserId(http.User), body.Title ?? "", body.Content ?? "", body.Tags ?? Array.Empty<string>());
+        var note = await notes.UpdateAsync(id, UserId(http.User), body.Title ?? "", body.Content ?? "", body.Tags ?? Array.Empty<string>(), body.Aliases ?? Array.Empty<string>());
         return Results.Ok(note);
     }
     catch (InvalidOperationException ex)
@@ -578,7 +580,7 @@ static async Task SignIn(HttpContext http, AtomicNotes.Core.Models.User user)
 
 internal sealed record RegisterBody(string? Username, string? Password, string? DisplayName);
 internal sealed record LoginBody(string? Username, string? Password);
-internal sealed record NoteBody(string? Title, string? Content, long? ParentNoteId, string[]? Tags);
+internal sealed record NoteBody(string? Title, string? Content, long? ParentNoteId, string[]? Tags, string[]? Aliases);
 
 internal sealed record DailyRequest(string? Date);
 
