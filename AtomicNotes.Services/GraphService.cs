@@ -17,7 +17,7 @@ public sealed class GraphService : IGraphService
     {
         using var connection = _factory.Create();
         var notes = (await connection.QueryAsync<(long Id, string Title)>(
-            new CommandDefinition("SELECT id AS Id, title AS Title FROM notes ORDER BY id", cancellationToken: ct))).ToList();
+            new CommandDefinition("SELECT id AS Id, title AS Title FROM notes WHERE deleted_at IS NULL ORDER BY id", cancellationToken: ct))).ToList();
 
         var edges = (await connection.QueryAsync<GraphEdge>(
             new CommandDefinition(

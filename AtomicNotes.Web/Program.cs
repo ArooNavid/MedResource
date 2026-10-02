@@ -230,6 +230,38 @@ app.MapPut("/api/notes/{id:long}/pin", async (long id, PinBody body, INoteServic
     }
 }).RequireAuthorization();
 
+app.MapPut("/api/notes/{id:long}/parent", async (long id, ParentBody body, INoteService notes) =>
+{
+    try
+    {
+        return Results.Ok(await notes.SetParentAsync(id, body.ParentNoteId));
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
+app.MapGet("/api/trash", async (INoteService notes) => Results.Ok(await notes.ListTrashAsync())).RequireAuthorization();
+
+app.MapPost("/api/trash/{id:long}/restore", async (long id, INoteService notes) =>
+{
+    try
+    {
+        return Results.Ok(await notes.RestoreAsync(id));
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
+app.MapDelete("/api/trash/{id:long}", async (long id, INoteService notes) =>
+{
+    await notes.PurgeAsync(id);
+    return Results.Ok();
+}).RequireAuthorization();
+
 app.MapPut("/api/notes/{id:long}", async (long id, NoteBody body, HttpContext http, INoteService notes) =>
 {
     try
@@ -547,6 +579,8 @@ internal sealed record TaskToggleBody(long NoteId, int LineIndex, bool Done);
 internal sealed record PreviewBody(string? Content, long? NoteId);
 
 internal sealed record PinBody(bool Pinned);
+
+internal sealed record ParentBody(long? ParentNoteId);
 internal sealed record ColorBody(string? ColorHex);
 internal sealed record SettingsBody(string? VaultPath, string? BackupPath, int BackupIntervalHours, string? Theme, bool NotificationsEnabled);
 internal sealed record RestoreBody(string? FilePath);

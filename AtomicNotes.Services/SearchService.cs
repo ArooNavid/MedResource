@@ -36,6 +36,7 @@ public sealed class SearchService : ISearchService
                       FROM notes_fts
                       JOIN notes n ON notes_fts.rowid = n.id
                      WHERE notes_fts MATCH @ftsQuery
+                       AND n.deleted_at IS NULL
                      ORDER BY rank
                      LIMIT @limit
                     """,

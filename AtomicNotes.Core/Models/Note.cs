@@ -12,4 +12,6 @@ public sealed class Note
     public string CreatedAt { get; set; } = string.Empty;
     public string UpdatedAt { get; set; } = string.Empty;
     public bool Pinned { get; set; }
+    /// <summary>UTC ISO-8601 when moved to trash; null means active.</summary>
+    public string? DeletedAt { get; set; }
 }

@@ -20,6 +20,7 @@ const $ = (id) => document.getElementById(id);
 const titles = {
   dashboard: ["امروز", "داشبورد"],
   notes: ["خزانه", "یادداشت‌ها"],
+  trash: ["بازیابی", "سطل زباله"],
   templates: ["الگو", "قالب‌ها"],
   journal: ["تهران", "دفتر روزانه"],
   tasks: ["چک‌لیست", "کارها"],
@@ -90,12 +91,25 @@ function openView(name) {
   const [kicker, title] = titles[name];
   $("view-kicker").textContent = kicker;
   $("view-title").textContent = title;
-  const loaders = { dashboard: loadDashboard, notes: loadNotes, templates: loadTemplates, journal: loadJournal, tasks: loadTasks, search: renderSearch, tags: loadTags, graph: loadGraph, sync: loadSync, import: renderImport, backups: loadBackups, settings: loadSettings };
+  const loaders = { dashboard: loadDashboard, notes: loadNotes, trash: loadTrash, templates: loadTemplates, journal: loadJournal, tasks: loadTasks, search: renderSearch, tags: loadTags, graph: loadGraph, sync: loadSync, import: renderImport, backups: loadBackups, settings: loadSettings };
   loaders[name]();
 }
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+}
+
+function formatIsoTehran(iso) {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString("fa-IR", { timeZone: "Asia/Tehran" });
+  } catch {
+    return iso;
+  }
+}
+
+function wordCount(text) {
+  return (text || "").trim().split(/\s+/).filter(Boolean).length;
 }
 
 function highlight(snippet) {
@@ -105,6 +119,7 @@ function highlight(snippet) {
 async function loadDashboard() {
   const data = await api("/api/dashboard");
   const tasks = await api("/api/tasks?open=true").catch(() => ({ openCount: 0, doneCount: 0 }));
+  const trash = await api("/api/trash").catch(() => []);
   const today = data.today || {};
   const comparison = data.isAdmin ? `
     <div class="card" style="grid-column: 1 / -1">
@@ -129,6 +144,7 @@ async function loadDashboard() {
       <article class="card"><span>PDF امروز</span><strong>${today.pdfImportCount ?? 0}</strong></article>
       <article class="card"><span>نشست‌ها</span><strong>${today.sessionCount ?? 0}</strong></article>
       <article class="card"><span>کار باز</span><strong>${tasks.openCount ?? 0}</strong></article>
+      <article class="card"><span>سطل زباله</span><strong>${trash.length ?? 0}</strong></article>
       <article class="card"><span>تاریخ تهران</span><strong style="font-size:18px">${escapeHtml(data.tehranDate)}</strong></article>
       ${comparison}
       <div class="card" style="grid-column: 1 / -1">
@@ -198,7 +214,7 @@ function renderNotes() {
           <input id="import-md-file" type="file" accept=".md,text/markdown" hidden />
         </div>
         <div class="list" id="note-list">
-          ${visible.map((note) => `<button class="note-item ${state.current?.note.id === note.id ? "active" : ""}" data-id="${note.id}">
+          ${visible.map((note) => `<button class="note-item ${state.current?.note.id === note.id ? "active" : ""}" data-id="${note.id}" style="padding-right:${8 + (note.depth - 1) * 14}px">
             <strong>${note.pinned ? `<span class="pill">سنجاق</span> ` : ""}${escapeHtml(note.title)}</strong>
             <div class="muted">عمق ${note.depth}</div>
           </button>`).join("") || `<p class="muted">یادداشتی با این فیلتر نیست.</p>`}
@@ -220,6 +236,12 @@ function renderNotes() {
         </div></div>
         <label>عنوان<input id="note-title" value="${escapeHtml(state.current?.note.title || "")}" /></label>
         <label>برچسب‌ها، با ویرگول<input id="note-tags" value="${escapeHtml((state.current?.tags || []).map((tag) => tag.name).join("، "))}" /></label>
+        <label>والد در درخت
+          <select id="note-parent" ${state.current?.note?.id ? "" : "disabled"}>
+            <option value="">— ریشه —</option>
+            ${(state.notes || []).filter((note) => note.id !== state.current?.note?.id).map((note) => `<option value="${note.id}" ${state.current?.note?.parentNoteId === note.id ? "selected" : ""}>${"·".repeat(Math.max(0, note.depth - 1))} ${escapeHtml(note.title)}</option>`).join("")}
+          </select>
+        </label>
         <label>متن مارک‌داون
           <div class="editor-split ${state.showPreview ? "preview-on" : ""}">
             <textarea id="note-content">${escapeHtml(state.current?.note.content || "")}</textarea>
@@ -231,6 +253,18 @@ function renderNotes() {
       <aside class="card" id="links-panel">${linksHtml()}</aside>
     </div>`;
   $("note-filter").oninput = () => renderNotes();
+  $("note-parent")?.addEventListener("change", async () => {
+    if (!state.current?.note?.id) return;
+    const parentNoteId = $("note-parent").value ? Number($("note-parent").value) : null;
+    try {
+      const saved = await api(`/api/notes/${state.current.note.id}/parent`, { method: "PUT", body: { parentNoteId } });
+      toast("محل در درخت به‌روز شد.");
+      state.current.note = saved;
+      await loadNotes();
+    } catch (error) {
+      toast(error.message);
+    }
+  });
   $("new-note").onclick = () => { state.current = { note: { title: "", content: "" }, tags: [], outgoing: [], backlinks: [] }; renderNotes(); };
   $("view-notes").querySelectorAll("[data-id]").forEach((button) => { button.onclick = () => openNote(button.dataset.id); });
   $("editor").onsubmit = saveNote;
@@ -288,7 +322,17 @@ function linksHtml() {
     <span class="${resolved ? "" : "dangling"}">${escapeHtml(title)}</span>
     <span class="dot" style="background:${resolved ? "var(--teal)" : "#b7b0a4"}"></span>
   </button>`;
+  const note = state.current?.note;
+  const meta = note ? `
+    <h3>اطلاعات</h3>
+    <dl class="note-meta">
+      <div><dt>مسیر</dt><dd dir="ltr">${escapeHtml(note.relPath || "—")}</dd></div>
+      <div><dt>ساخته</dt><dd>${escapeHtml(formatIsoTehran(note.createdAt))}</dd></div>
+      <div><dt>ویرایش</dt><dd>${escapeHtml(formatIsoTehran(note.updatedAt))}</dd></div>
+      <div><dt>کلمات</dt><dd>${wordCount(note.content)}</dd></div>
+    </dl>` : "";
   return `
+    ${meta}
     <h3>پیوندها</h3>
     <div class="list" style="margin:8px 0 14px">
       ${outgoing.map((link) => row(link, link.targetNoteId, link.targetTitle, link.isResolved)).join("") || `<p class="muted">پیوند خروجی نیست.</p>`}
@@ -508,8 +552,73 @@ async function deleteNote() {
   if (!state.current?.note?.id) return;
   await api(`/api/notes/${state.current.note.id}`, { method: "DELETE" });
   state.current = null;
-  toast("یادداشت حذف شد.");
+  toast("یادداشت به سطل زباله رفت.");
   await loadNotes();
+}
+
+async function loadTrash() {
+  const items = await api("/api/trash");
+  $("view-trash").innerHTML = `
+    <div class="card" style="max-width:720px">
+      <h3>یادداشت‌های حذف‌شده</h3>
+      <p class="muted">فایل در خزانه می‌ماند تا بازیابی یا حذف دائمی.</p>
+      <div class="list" style="margin-top:12px">
+        ${items.map((note) => `<article class="note-item trash-row">
+          <div><strong>${escapeHtml(note.title)}</strong><div class="muted">${escapeHtml(formatIsoTehran(note.deletedAt))}</div></div>
+          <div class="row">
+            <button class="ghost" type="button" data-restore="${note.id}">بازیابی</button>
+            <button class="danger" type="button" data-purge="${note.id}">حذف دائمی</button>
+          </div>
+        </article>`).join("") || `<p class="muted">سطل زباله خالی است.</p>`}
+      </div>
+    </div>`;
+  $("view-trash").querySelectorAll("[data-restore]").forEach((button) => {
+    button.onclick = async () => {
+      await api(`/api/trash/${button.dataset.restore}/restore`, { method: "POST" });
+      toast("یادداشت بازیابی شد.");
+      loadTrash();
+    };
+  });
+  $("view-trash").querySelectorAll("[data-purge]").forEach((button) => {
+    button.onclick = async () => {
+      await api(`/api/trash/${button.dataset.purge}`, { method: "DELETE" });
+      toast("یادداشت برای همیشه حذف شد.");
+      loadTrash();
+    };
+  });
+}
+
+async function ensureNotesForQuickOpen() {
+  if (!state.notes.length) state.notes = await api("/api/notes");
+}
+
+function renderQuickOpenResults(query) {
+  const needle = query.trim();
+  const pool = needle
+    ? state.notes.filter((note) => note.title.includes(needle))
+    : state.notes.slice(0, 20);
+  $("quick-open-results").innerHTML = pool.slice(0, 12).map((note) => `
+    <button type="button" class="note-item" data-qid="${note.id}">${escapeHtml(note.title)}</button>`).join("")
+    || `<p class="muted">یادنتی پیدا نشد.</p>`;
+  $("quick-open-results").querySelectorAll("[data-qid]").forEach((button) => {
+    button.onclick = () => {
+      closeQuickOpen();
+      openNote(button.dataset.qid);
+    };
+  });
+}
+
+function openQuickOpen() {
+  ensureNotesForQuickOpen().then(() => {
+    $("quick-open").hidden = false;
+    $("quick-open-input").value = "";
+    renderQuickOpenResults("");
+    $("quick-open-input").focus();
+  });
+}
+
+function closeQuickOpen() {
+  $("quick-open").hidden = true;
 }
 
 function exportPdf() {
@@ -967,6 +1076,18 @@ $("logout").onclick = async () => {
   state.current = null;
   showAuth();
 };
+
+$("quick-open-btn").onclick = () => openQuickOpen();
+$("quick-open-backdrop").onclick = () => closeQuickOpen();
+$("quick-open-input").oninput = () => renderQuickOpenResults($("quick-open-input").value);
+
+document.addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+    event.preventDefault();
+    if (state.user) openQuickOpen();
+  }
+  if (event.key === "Escape" && !$("quick-open").hidden) closeQuickOpen();
+});
 
 setInterval(tickClock, 1000);
 api("/api/auth/me").then((user) => { state.user = user; showApp(); }).catch(() => showAuth());

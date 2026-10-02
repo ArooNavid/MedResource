@@ -132,7 +132,7 @@ public sealed class ObsidianSyncService : IObsidianSyncService
         {
             if (state is not null && state.DbHash == dbHash)
             {
-                await _notes.DeleteAsync(note.Id, ct);
+                await _notes.PurgeAsync(note.Id, ct);
                 messages.Add($"حذف شد چون فایل خزانه نبود: {note.Title}");
                 return SyncAction.Delete;
             }

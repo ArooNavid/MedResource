@@ -42,6 +42,7 @@
       <nav>
         <button data-view="dashboard" class="active">داشبورد</button>
         <button data-view="notes">یادداشت‌ها</button>
+        <button data-view="trash">سطل زباله</button>
         <button data-view="templates">قالب‌ها</button>
         <button data-view="journal">دفتر روزانه</button>
         <button data-view="tasks">کارها</button>
@@ -68,6 +69,7 @@
           <h2 id="view-title">داشبورد</h2>
         </div>
         <div class="row" style="align-items:center">
+          <button class="ghost" id="quick-open-btn" type="button" title="Ctrl+K">باز کردن سریع</button>
           <button class="primary" id="open-daily" type="button">یادداشت امروز</button>
           <div class="clock" id="clock">--</div>
         </div>
@@ -76,6 +78,7 @@
 
       <section id="view-dashboard" class="view"></section>
       <section id="view-notes" class="view" hidden></section>
+      <section id="view-trash" class="view" hidden></section>
       <section id="view-templates" class="view" hidden></section>
       <section id="view-journal" class="view" hidden></section>
       <section id="view-tasks" class="view" hidden></section>
@@ -87,6 +90,14 @@
       <section id="view-backups" class="view" hidden></section>
       <section id="view-settings" class="view" hidden></section>
     </main>
+  </div>
+  <div id="quick-open" class="quick-open" hidden>
+    <div class="quick-open-backdrop" id="quick-open-backdrop"></div>
+    <div class="quick-open-panel card">
+      <input id="quick-open-input" placeholder="نام یادداشت را بنویسید…" autocomplete="off" />
+      <div id="quick-open-results" class="list"></div>
+      <p class="muted" style="margin:10px 0 0;font-size:12px">Ctrl+K · Esc</p>
+    </div>
   </div>
   <script src="/app.js"></script>
 </body>

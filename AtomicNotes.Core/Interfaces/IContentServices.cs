@@ -46,9 +46,13 @@ public interface INoteService
     Task<Note> CreateAsync(long ownerUserId, string title, string content, long? parentNoteId, IEnumerable<string> tags, CancellationToken ct = default);
     Task<Note> UpdateAsync(long id, long editorUserId, string title, string content, IEnumerable<string> tags, CancellationToken ct = default);
     Task DeleteAsync(long id, CancellationToken ct = default);
+    Task<IReadOnlyList<Note>> ListTrashAsync(CancellationToken ct = default);
+    Task<Note> RestoreAsync(long id, CancellationToken ct = default);
+    Task PurgeAsync(long id, CancellationToken ct = default);
     Task<IReadOnlyList<Note>> RecentAsync(int limit, CancellationToken ct = default);
     Task<IReadOnlyList<Note>> ListPinnedAsync(CancellationToken ct = default);
     Task<Note> SetPinnedAsync(long id, bool pinned, CancellationToken ct = default);
+    Task<Note> SetParentAsync(long id, long? parentNoteId, CancellationToken ct = default);
     Task<Note> DuplicateAsync(long id, long ownerUserId, CancellationToken ct = default);
 }
 

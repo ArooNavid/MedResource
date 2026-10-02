@@ -35,13 +35,7 @@ public sealed class NoteService : INoteService
         using var connection = _factory.Create();
         var rows = await connection.QueryAsync<Note>(
             new CommandDefinition(
-                """
-                SELECT id AS Id, title AS Title, content AS Content, rel_path AS RelPath,
-                       depth AS Depth, parent_note_id AS ParentNoteId, owner_user_id AS OwnerUserId,
-                       created_at AS CreatedAt, updated_at AS UpdatedAt, pinned AS Pinned
-                  FROM notes
-                 ORDER BY pinned DESC, updated_at DESC
-                """,
+                SelectOne + " WHERE deleted_at IS NULL ORDER BY pinned DESC, updated_at DESC",
                 cancellationToken: ct));
         return rows.ToList();
     }
@@ -57,7 +51,10 @@ public sealed class NoteService : INoteService
     {
         using var connection = _factory.Create();
         return await connection.QuerySingleOrDefaultAsync<Note>(
-            new CommandDefinition(SelectOne + " WHERE rel_path = @Rel", new { Rel = NormalizeRel(relPath) }, cancellationToken: ct));
+            new CommandDefinition(
+                SelectOne + " WHERE rel_path = @Rel AND deleted_at IS NULL",
+                new { Rel = NormalizeRel(relPath) },
+                cancellationToken: ct));
     }
 
     public async Task<Note> CreateAtPathAsync(
@@ -112,7 +109,7 @@ public sealed class NoteService : INoteService
         if (title.Length == 0)
             throw new InvalidOperationException("عنوان یادداشت نمی‌تواند خالی باشد.");
 
-        var parent = parentNoteId is null ? null : await GetAsync(parentNoteId.Value, ct);
+        var parent = parentNoteId is null ? null : await RequireActiveAsync(parentNoteId.Value, ct);
         var depth = parent is null ? 1 : parent.Depth + 1;
         if (depth > AppConstants.MaxTreeDepth)
             throw new InvalidOperationException($"عمق درخت نمی‌تواند بیشتر از {AppConstants.MaxTreeDepth} باشد.");
@@ -160,7 +157,7 @@ public sealed class NoteService : INoteService
         IEnumerable<string> tags,
         CancellationToken ct = default)
     {
-        var existing = await GetAsync(id, ct) ?? throw new InvalidOperationException("یادداشت پیدا نشد.");
+        var existing = await RequireActiveAsync(id, ct);
         title = title.Trim();
         if (title.Length == 0)
             throw new InvalidOperationException("عنوان یادداشت نمی‌تواند خالی باشد.");
@@ -192,6 +189,49 @@ public sealed class NoteService : INoteService
 
     public async Task DeleteAsync(long id, CancellationToken ct = default)
     {
+        var existing = await RequireActiveAsync(id, ct);
+        var now = DateTime.UtcNow.ToString("o");
+        using var connection = _factory.Create();
+        await connection.ExecuteAsync(
+            new CommandDefinition(
+                """
+                UPDATE notes
+                   SET deleted_at = @Now, pinned = 0, updated_at = @Now
+                 WHERE id = @Id
+                """,
+                new { Id = id, Now = now },
+                cancellationToken: ct));
+        _ = existing;
+    }
+
+    public async Task<IReadOnlyList<Note>> ListTrashAsync(CancellationToken ct = default)
+    {
+        using var connection = _factory.Create();
+        var rows = await connection.QueryAsync<Note>(
+            new CommandDefinition(
+                SelectOne + " WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC",
+                cancellationToken: ct));
+        return rows.ToList();
+    }
+
+    public async Task<Note> RestoreAsync(long id, CancellationToken ct = default)
+    {
+        var note = await GetAsync(id, ct) ?? throw new InvalidOperationException("یادداشت پیدا نشد.");
+        if (string.IsNullOrWhiteSpace(note.DeletedAt))
+            return note;
+
+        var now = DateTime.UtcNow.ToString("o");
+        using var connection = _factory.Create();
+        await connection.ExecuteAsync(
+            new CommandDefinition(
+                "UPDATE notes SET deleted_at = NULL, updated_at = @Now WHERE id = @Id",
+                new { Id = id, Now = now },
+                cancellationToken: ct));
+        return (await GetAsync(id, ct))!;
+    }
+
+    public async Task PurgeAsync(long id, CancellationToken ct = default)
+    {
         var existing = await GetAsync(id, ct);
         using var connection = _factory.Create();
         await connection.ExecuteAsync(
@@ -211,7 +251,7 @@ public sealed class NoteService : INoteService
         using var connection = _factory.Create();
         var rows = await connection.QueryAsync<Note>(
             new CommandDefinition(
-                SelectOne + " ORDER BY updated_at DESC LIMIT @Limit",
+                SelectOne + " WHERE deleted_at IS NULL ORDER BY updated_at DESC LIMIT @Limit",
                 new { Limit = limit },
                 cancellationToken: ct));
         return rows.ToList();
@@ -222,14 +262,14 @@ public sealed class NoteService : INoteService
         using var connection = _factory.Create();
         var rows = await connection.QueryAsync<Note>(
             new CommandDefinition(
-                SelectOne + " WHERE pinned = 1 ORDER BY updated_at DESC",
+                SelectOne + " WHERE deleted_at IS NULL AND pinned = 1 ORDER BY updated_at DESC",
                 cancellationToken: ct));
         return rows.ToList();
     }
 
     public async Task<Note> SetPinnedAsync(long id, bool pinned, CancellationToken ct = default)
     {
-        _ = await GetAsync(id, ct) ?? throw new InvalidOperationException("یادداشت پیدا نشد.");
+        _ = await RequireActiveAsync(id, ct);
         using var connection = _factory.Create();
         await connection.ExecuteAsync(
             new CommandDefinition(
@@ -239,31 +279,81 @@ public sealed class NoteService : INoteService
         return (await GetAsync(id, ct))!;
     }
 
+    public async Task<Note> SetParentAsync(long id, long? parentNoteId, CancellationToken ct = default)
+    {
+        var note = await RequireActiveAsync(id, ct);
+        if (parentNoteId == id)
+            throw new InvalidOperationException("یادداشت نمی‌تواند والد خودش باشد.");
+
+        Note? parent = null;
+        var depth = 1;
+        if (parentNoteId is not null)
+        {
+            parent = await RequireActiveAsync(parentNoteId.Value, ct);
+            depth = parent.Depth + 1;
+            if (depth > AppConstants.MaxTreeDepth)
+                throw new InvalidOperationException($"عمق درخت نمی‌تواند بیشتر از {AppConstants.MaxTreeDepth} باشد.");
+        }
+
+        using var connection = _factory.Create();
+        await connection.ExecuteAsync(
+            new CommandDefinition(
+                """
+                UPDATE notes
+                   SET parent_note_id = @Parent, depth = @Depth, updated_at = @Now
+                 WHERE id = @Id
+                """,
+                new
+                {
+                    Id = id,
+                    Parent = parent?.Id,
+                    Depth = depth,
+                    Now = DateTime.UtcNow.ToString("o")
+                },
+                cancellationToken: ct));
+
+        var tagNames = (await _tags.GetTagsForNoteAsync((int)id, ct)).Select(tag => tag.Name);
+        WriteFile(note.RelPath, note.Title, depth, tagNames, note.Content);
+        return (await GetAsync(id, ct))!;
+    }
+
     public async Task<Note> DuplicateAsync(long id, long ownerUserId, CancellationToken ct = default)
     {
-        var source = await GetAsync(id, ct) ?? throw new InvalidOperationException("یادداشت پیدا نشد.");
-        var tagNames = (await _tags.GetTagsForNoteAsync((int)id, ct)).Select(tag => tag.Name);
+        var source = await RequireActiveAsync(id, ct);
+        var tagNames = (await _tags.GetTagsForNoteAsync((int)source.Id, ct)).Select(tag => tag.Name);
         var copyTitle = await UniqueCopyTitleAsync(source.Title, ct);
         return await CreateAsync(ownerUserId, copyTitle, source.Content, source.ParentNoteId, tagNames, ct);
+    }
+
+    private async Task<Note> RequireActiveAsync(long id, CancellationToken ct)
+    {
+        var note = await GetAsync(id, ct) ?? throw new InvalidOperationException("یادداشت پیدا نشد.");
+        if (!string.IsNullOrWhiteSpace(note.DeletedAt))
+            throw new InvalidOperationException("این یادداشت در سطل زباله است.");
+        return note;
     }
 
     private async Task<string> UniqueCopyTitleAsync(string title, CancellationToken ct)
     {
         var baseTitle = title.Trim();
         var candidate = $"{baseTitle} — رونوشت";
-        var suffix = 2;
         using var connection = _factory.Create();
+        if (await connection.ExecuteScalarAsync<long>(
+                new CommandDefinition(
+                    "SELECT COUNT(1) FROM notes WHERE title = @Title COLLATE NOCASE AND deleted_at IS NULL",
+                    new { Title = candidate },
+                    cancellationToken: ct)) == 0)
+            return candidate;
+
+        var n = 2;
         while (await connection.ExecuteScalarAsync<long>(
                    new CommandDefinition(
-                       "SELECT COUNT(1) FROM notes WHERE title = @Title COLLATE NOCASE",
-                       new { Title = candidate },
+                       "SELECT COUNT(1) FROM notes WHERE title = @Title COLLATE NOCASE AND deleted_at IS NULL",
+                       new { Title = $"{baseTitle} — رونوشت {n}" },
                        cancellationToken: ct)) > 0)
-        {
-            candidate = $"{baseTitle} — رونوشت {suffix}";
-            suffix++;
-        }
+            n++;
 
-        return candidate;
+        return $"{baseTitle} — رونوشت {n}";
     }
 
     public async Task UpsertFromFileAsync(string fullPath, CancellationToken ct = default)
@@ -307,7 +397,11 @@ public sealed class NoteService : INoteService
         {
             await connection.ExecuteAsync(
                 new CommandDefinition(
-                    "UPDATE notes SET title = @Title, content = @Content, depth = @Depth, updated_at = @Now WHERE id = @Id",
+                    """
+                    UPDATE notes
+                       SET title = @Title, content = @Content, depth = @Depth, updated_at = @Now, deleted_at = NULL
+                     WHERE id = @Id
+                    """,
                     new { Id = existingId, Title = title, Content = parsed.Body, Depth = parsed.Depth, Now = DateTime.UtcNow.ToString("o") },
                     cancellationToken: ct));
         }
@@ -329,7 +423,7 @@ public sealed class NoteService : INoteService
 
     public async Task<string> AllocateRelPathAsync(string title, long? parentNoteId, CancellationToken ct = default)
     {
-        var parent = parentNoteId is null ? null : await GetAsync(parentNoteId.Value, ct);
+        var parent = parentNoteId is null ? null : await RequireActiveAsync(parentNoteId.Value, ct);
         return await UniqueRelPathAsync(title, parent, ct);
     }
 
@@ -375,7 +469,8 @@ public sealed class NoteService : INoteService
     private const string SelectOne = """
         SELECT id AS Id, title AS Title, content AS Content, rel_path AS RelPath,
                depth AS Depth, parent_note_id AS ParentNoteId, owner_user_id AS OwnerUserId,
-               created_at AS CreatedAt, updated_at AS UpdatedAt, pinned AS Pinned
+               created_at AS CreatedAt, updated_at AS UpdatedAt, pinned AS Pinned,
+               deleted_at AS DeletedAt
           FROM notes
         """;
 }
