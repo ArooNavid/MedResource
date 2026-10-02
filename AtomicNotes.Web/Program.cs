@@ -561,6 +561,23 @@ app.MapPut("/api/settings", async (SettingsBody body, ISettingsService settingsS
     return Results.Ok(new { message = "تنظیمات ذخیره شد." });
 }).RequireAuthorization();
 
+app.MapPost("/api/vault/import/preview", async (HttpRequest request, IVaultImportService import) =>
+{
+    var file = request.Form.Files.FirstOrDefault();
+    if (file is null || file.Length == 0)
+        return Results.BadRequest(new { error = "فایل zip انتخاب نشده است." });
+    try
+    {
+        await using var stream = file.OpenReadStream();
+        var result = await import.PreviewMarkdownZipAsync(stream);
+        return Results.Ok(result);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
 app.MapPost("/api/vault/import", async (HttpRequest request, IVaultImportService import) =>
 {
     var file = request.Form.Files.FirstOrDefault();

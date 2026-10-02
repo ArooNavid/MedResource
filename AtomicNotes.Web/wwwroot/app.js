@@ -13,7 +13,9 @@ const state = {
   taskFilter: "open",
   showPreview: false,
   noteSort: "updated",
-  noteOrder: "desc"
+  noteOrder: "desc",
+  pendingVaultZip: null,
+  vaultImportPreview: null
 };
 
 let previewTimer;
@@ -113,6 +115,32 @@ function formatIsoTehran(iso) {
 
 function wordCount(text) {
   return (text || "").trim().split(/\s+/).filter(Boolean).length;
+}
+
+function vaultImportActionLabel(action) {
+  const map = { Skipped: "رد", New: "جدید", Updated: "به‌روز", Invalid: "نامعتبر" };
+  return map[action] || action;
+}
+
+function renderVaultImportReport(result, heading) {
+  const entries = result?.entries || [];
+  const summary = result?.preview
+    ? `پیش‌نمایش: ${result.imported ?? 0} جدید، ${result.updated ?? 0} به‌روز، ${result.skipped ?? 0} رد`
+    : `انجام شد: ${result.imported ?? 0} جدید، ${result.updated ?? 0} به‌روز، ${result.skipped ?? 0} رد`;
+  return `
+    <div class="card" style="margin-top:12px" id="vault-import-report">
+      <h4 style="margin:0 0 8px">${escapeHtml(heading)}</h4>
+      <p class="muted" style="margin:0 0 10px">${escapeHtml(summary)}</p>
+      <div class="list" style="max-height:220px;overflow:auto">
+        ${entries.length
+    ? entries.map((entry) => `<article class="note-item">
+            <strong>${escapeHtml(vaultImportActionLabel(entry.action))}</strong>
+            <div dir="ltr" class="muted">${escapeHtml(entry.relPath || "—")}</div>
+            <div class="muted">${escapeHtml(entry.message || "")}</div>
+          </article>`).join("")
+    : `<p class="muted">ردیفی برای نمایش نیست.</p>`}
+      </div>
+    </div>`;
 }
 
 function wikilinkMarkup(target) {
@@ -1152,7 +1180,9 @@ async function loadBackups() {
         <button class="primary" type="button" id="export-vault-zip">دانلود zip خزانه</button>
         <button class="ghost" type="button" id="import-vault-zip">ورود zip خزانه</button>
         <input id="import-vault-zip-file" type="file" accept=".zip,application/zip" hidden />
+        <button class="primary" type="button" id="confirm-vault-import" hidden>ورود تأییدشده</button>
       </div>
+      <div id="vault-import-panel"></div>
     </div>
     <div class="card">
       <div class="editor-head">
@@ -1175,18 +1205,48 @@ async function loadBackups() {
     </div>`;
   $("export-vault-zip").onclick = () => { window.location = "/api/vault/export"; };
   $("import-vault-zip").onclick = () => $("import-vault-zip-file").click();
+  const showVaultImportPreview = (result) => {
+    state.vaultImportPreview = result;
+    $("vault-import-panel").innerHTML = renderVaultImportReport(result, "پیش‌نمایش ورود zip");
+    const confirm = $("confirm-vault-import");
+    if (confirm) confirm.hidden = !state.pendingVaultZip;
+  };
   $("import-vault-zip-file").onchange = async () => {
     const file = $("import-vault-zip-file").files?.[0];
     if (!file) return;
+    state.pendingVaultZip = file;
     const body = new FormData();
     body.append("file", file);
     try {
-      const result = await api("/api/vault/import", { method: "POST", body });
-      toast(`${result.imported} فایل وارد شد (${result.skipped} رد شد).`);
+      toast("در حال پیش‌نمایش…");
+      const result = await api("/api/vault/import/preview", { method: "POST", body });
+      showVaultImportPreview(result);
+      toast("پیش‌نمایش آماده است؛ ورود را تأیید کنید.");
     } catch (error) {
+      state.pendingVaultZip = null;
+      state.vaultImportPreview = null;
+      $("vault-import-panel").innerHTML = "";
       toast(error.message);
     } finally {
       $("import-vault-zip-file").value = "";
+    }
+  };
+  $("confirm-vault-import").onclick = async () => {
+    const file = state.pendingVaultZip;
+    if (!file) return toast("ابتدا zip را انتخاب کنید.");
+    const body = new FormData();
+    body.append("file", file);
+    try {
+      toast("در حال ورود…");
+      const result = await api("/api/vault/import", { method: "POST", body });
+      state.pendingVaultZip = null;
+      state.vaultImportPreview = null;
+      $("confirm-vault-import").hidden = true;
+      $("vault-import-panel").innerHTML = renderVaultImportReport(result, "گزارش ورود zip");
+      toast(`${result.imported} جدید، ${result.updated} به‌روز (${result.skipped} رد).`);
+      loadBackups();
+    } catch (error) {
+      toast(error.message);
     }
   };
   $("reload-backups").onclick = loadBackups;

@@ -131,6 +131,7 @@ public interface IVaultExportService
 
 public interface IVaultImportService
 {
+    Task<VaultImportResult> PreviewMarkdownZipAsync(Stream zipStream, CancellationToken ct = default);
     Task<VaultImportResult> ImportMarkdownZipAsync(Stream zipStream, CancellationToken ct = default);
 }
 
