@@ -72,6 +72,9 @@ public interface IDailyNoteService
     /// The same path is never created twice and an existing file is left as it is.
     /// </summary>
     Task<DailyNoteResult> OpenAsync(long ownerUserId, string? tehranDate = null, CancellationToken ct = default);
+
+    /// <summary>Stage 24: month grid of daily notes keyed by Tehran yyyy-MM-dd.</summary>
+    Task<DailyJournalMonth> GetMonthAsync(int year, int month, CancellationToken ct = default);
 }
 
 public interface IObsidianSyncService

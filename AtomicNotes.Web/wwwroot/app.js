@@ -8,7 +8,8 @@ const state = {
   tags: [],
   tagFilter: [],
   graph: null,
-  sim: null
+  sim: null,
+  journal: null
 };
 
 const $ = (id) => document.getElementById(id);
@@ -16,6 +17,7 @@ const titles = {
   dashboard: ["امروز", "داشبورد"],
   notes: ["خزانه", "یادداشت‌ها"],
   templates: ["الگو", "قالب‌ها"],
+  journal: ["تهران", "دفتر روزانه"],
   search: ["متن کامل", "جستجو"],
   tags: ["ابر", "برچسب‌ها"],
   graph: ["پیوندها", "گراف نیرو"],
@@ -83,7 +85,7 @@ function openView(name) {
   const [kicker, title] = titles[name];
   $("view-kicker").textContent = kicker;
   $("view-title").textContent = title;
-  const loaders = { dashboard: loadDashboard, notes: loadNotes, templates: loadTemplates, search: renderSearch, tags: loadTags, graph: loadGraph, sync: loadSync, import: renderImport, backups: loadBackups, settings: loadSettings };
+  const loaders = { dashboard: loadDashboard, notes: loadNotes, templates: loadTemplates, journal: loadJournal, search: renderSearch, tags: loadTags, graph: loadGraph, sync: loadSync, import: renderImport, backups: loadBackups, settings: loadSettings };
   loaders[name]();
 }
 
@@ -212,6 +214,68 @@ async function openNote(id) {
   state.current = await api(`/api/notes/${id}`);
   if (state.view !== "notes") openView("notes");
   else renderNotes();
+}
+
+const journalMonthNames = ["", "ژانویه", "فوریه", "مارس", "آوریل", "مه", "ژوئن", "ژوئیه", "اوت", "سپتامبر", "اکتبر", "نوامبر", "دسامبر"];
+const journalWeekdays = ["ش", "ی", "د", "س", "چ", "پ", "ج"];
+
+async function openDailyDate(date) {
+  const result = await api("/api/daily", { method: "POST", body: date ? { date } : {} });
+  toast(result.created ? "یادداشت روز ساخته شد." : "یادداشت روز باز شد.");
+  await openNote(result.note.id);
+}
+
+async function loadJournal() {
+  const current = state.journal || {};
+  const query = current.year && current.month ? `?year=${current.year}&month=${current.month}` : "";
+  const month = await api("/api/daily/month" + query);
+  state.journal = { year: month.year, month: month.month };
+  const pads = Array.from({ length: month.leadingPadding }, () => `<div class="journal-cell pad"></div>`).join("");
+  const cells = month.days.map((day) => {
+    const dayNum = day.tehranDate.slice(-2).replace(/^0/, "");
+    const classes = ["journal-cell", day.tehranDate === month.today ? "today" : "", day.hasNote ? "has-note" : ""].filter(Boolean).join(" ");
+    return `<button type="button" class="${classes}" data-journal-day="${escapeHtml(day.tehranDate)}">
+      <strong>${escapeHtml(dayNum)}</strong>
+      <span class="muted">${day.hasNote ? "●" : ""}</span>
+    </button>`;
+  }).join("");
+  $("view-journal").innerHTML = `
+    <div class="card" style="max-width:920px">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div>
+          <h3 style="margin:0">${escapeHtml(journalMonthNames[month.month])} ${month.year}</h3>
+          <p class="muted" style="margin:6px 0 0">روزهای پررنگ یادداشت دارند. امروز: ${escapeHtml(month.today)}</p>
+        </div>
+        <div class="row">
+          <button class="ghost" type="button" id="journal-prev">ماه قبل</button>
+          <button class="ghost" type="button" id="journal-today">امروز</button>
+          <button class="ghost" type="button" id="journal-next">ماه بعد</button>
+        </div>
+      </div>
+      <div class="journal-weekdays">${journalWeekdays.map((name) => `<span>${name}</span>`).join("")}</div>
+      <div class="journal-grid">${pads}${cells}</div>
+    </div>`;
+  $("journal-prev").onclick = () => {
+    let y = month.year;
+    let m = month.month - 1;
+    if (m < 1) { m = 12; y -= 1; }
+    state.journal = { year: y, month: m };
+    loadJournal();
+  };
+  $("journal-next").onclick = () => {
+    let y = month.year;
+    let m = month.month + 1;
+    if (m > 12) { m = 1; y += 1; }
+    state.journal = { year: y, month: m };
+    loadJournal();
+  };
+  $("journal-today").onclick = () => { state.journal = null; loadJournal(); };
+  $("view-journal").querySelectorAll("[data-journal-day]").forEach((button) => {
+    button.onclick = async () => {
+      try { await openDailyDate(button.dataset.journalDay); }
+      catch (error) { toast(error.message); }
+    };
+  });
 }
 
 async function applyTemplate() {
@@ -723,13 +787,8 @@ document.querySelectorAll(".side nav button").forEach((button) => {
   button.onclick = () => openView(button.dataset.view);
 });
 $("open-daily").onclick = async () => {
-  try {
-    const result = await api("/api/daily", { method: "POST", body: {} });
-    toast(result.created ? "یادداشت امروز ساخته شد." : "یادداشت امروز باز شد.");
-    await openNote(result.note.id);
-  } catch (error) {
-    toast(error.message);
-  }
+  try { await openDailyDate(); }
+  catch (error) { toast(error.message); }
 };
 
 $("logout").onclick = async () => {

@@ -22,6 +22,15 @@ public sealed class ImportOperation
 
 public sealed record DailyNoteResult(Note Note, bool Created, string TehranDate, string RelPath);
 
+public sealed record DailyJournalDay(string TehranDate, bool HasNote, long? NoteId);
+
+public sealed record DailyJournalMonth(
+    int Year,
+    int Month,
+    string Today,
+    int LeadingPadding,
+    IReadOnlyList<DailyJournalDay> Days);
+
 public sealed record SyncReport(
     DateTime SyncedAtUtc,
     int Pulled,

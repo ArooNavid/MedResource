@@ -255,6 +255,21 @@ app.MapPost("/api/notes/{id:long}/template", async (long id, ApplyTemplateBody b
     }
 }).RequireAuthorization();
 
+app.MapGet("/api/daily/month", async (int? year, int? month, IDailyNoteService daily, ITehranClockService clock) =>
+{
+    try
+    {
+        var tehran = clock.TehranNow;
+        var y = year ?? tehran.Year;
+        var m = month ?? tehran.Month;
+        return Results.Ok(await daily.GetMonthAsync(y, m));
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
 app.MapPost("/api/daily", async (DailyRequest? body, HttpContext http, IDailyNoteService daily) =>
 {
     try
