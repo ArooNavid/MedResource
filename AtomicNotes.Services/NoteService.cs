@@ -239,6 +239,33 @@ public sealed class NoteService : INoteService
         return (await GetAsync(id, ct))!;
     }
 
+    public async Task<Note> DuplicateAsync(long id, long ownerUserId, CancellationToken ct = default)
+    {
+        var source = await GetAsync(id, ct) ?? throw new InvalidOperationException("یادداشت پیدا نشد.");
+        var tagNames = (await _tags.GetTagsForNoteAsync((int)id, ct)).Select(tag => tag.Name);
+        var copyTitle = await UniqueCopyTitleAsync(source.Title, ct);
+        return await CreateAsync(ownerUserId, copyTitle, source.Content, source.ParentNoteId, tagNames, ct);
+    }
+
+    private async Task<string> UniqueCopyTitleAsync(string title, CancellationToken ct)
+    {
+        var baseTitle = title.Trim();
+        var candidate = $"{baseTitle} — رونوشت";
+        var suffix = 2;
+        using var connection = _factory.Create();
+        while (await connection.ExecuteScalarAsync<long>(
+                   new CommandDefinition(
+                       "SELECT COUNT(1) FROM notes WHERE title = @Title COLLATE NOCASE",
+                       new { Title = candidate },
+                       cancellationToken: ct)) > 0)
+        {
+            candidate = $"{baseTitle} — رونوشت {suffix}";
+            suffix++;
+        }
+
+        return candidate;
+    }
+
     public async Task UpsertFromFileAsync(string fullPath, CancellationToken ct = default)
     {
         var vault = _settings.Current.VaultPath;
