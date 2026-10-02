@@ -183,6 +183,12 @@ app.MapGet("/api/notes", async (string? tagIds, INoteService notes, ITagService 
     return Results.Ok(list);
 }).RequireAuthorization();
 
+app.MapGet("/api/notes/random", async (INoteService notes) =>
+{
+    var note = await notes.GetRandomAsync();
+    return note is null ? Results.NotFound(new { error = "یادداشتی برای انتخاب تصادفی نیست." }) : Results.Ok(note);
+}).RequireAuthorization();
+
 app.MapGet("/api/notes/{id:long}", async (long id, INoteService notes, ITagService tags, IAliasService aliases, INoteLinkService links) =>
 {
     var note = await notes.GetAsync(id);

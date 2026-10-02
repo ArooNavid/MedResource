@@ -363,6 +363,16 @@ async function openNote(id) {
   else renderNotes();
 }
 
+async function openRandomNote() {
+  try {
+    const note = await api("/api/notes/random");
+    toast("یادداشت تصادفی");
+    await openNote(note.id);
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
 const journalMonthNames = ["", "ژانویه", "فوریه", "مارس", "آوریل", "مه", "ژوئن", "ژوئیه", "اوت", "سپتامبر", "اکتبر", "نوامبر", "دسامبر"];
 const journalWeekdays = ["ش", "ی", "د", "س", "چ", "پ", "ج"];
 
@@ -1093,6 +1103,7 @@ $("logout").onclick = async () => {
 };
 
 $("quick-open-btn").onclick = () => openQuickOpen();
+$("random-note").onclick = () => openRandomNote();
 $("quick-open-backdrop").onclick = () => closeQuickOpen();
 $("quick-open-input").oninput = () => renderQuickOpenResults($("quick-open-input").value);
 
@@ -1100,6 +1111,10 @@ document.addEventListener("keydown", (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
     event.preventDefault();
     if (state.user) openQuickOpen();
+  }
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "r") {
+    event.preventDefault();
+    if (state.user) openRandomNote();
   }
   if (event.key === "Escape" && !$("quick-open").hidden) closeQuickOpen();
 });

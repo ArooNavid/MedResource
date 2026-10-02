@@ -43,6 +43,15 @@ public sealed class NoteService : INoteService
         return rows.ToList();
     }
 
+    public async Task<Note?> GetRandomAsync(CancellationToken ct = default)
+    {
+        using var connection = _factory.Create();
+        return await connection.QuerySingleOrDefaultAsync<Note>(
+            new CommandDefinition(
+                SelectOne + " WHERE deleted_at IS NULL ORDER BY RANDOM() LIMIT 1",
+                cancellationToken: ct));
+    }
+
     public async Task<Note?> GetAsync(long id, CancellationToken ct = default)
     {
         using var connection = _factory.Create();
