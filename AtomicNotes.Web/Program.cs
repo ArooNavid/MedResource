@@ -432,6 +432,15 @@ app.MapGet("/api/notes/{id:long}/markdown", async (long id, INoteMarkdownService
     }
 }).RequireAuthorization();
 
+app.MapGet("/api/notes/{id:long}/wikilink", async (long id, INoteService notes) =>
+{
+    var note = await notes.GetAsync(id);
+    if (note is null || note.DeletedAt is not null)
+        return Results.NotFound();
+    var markup = WikilinkMarkup.Format(note.Title);
+    return Results.Ok(new { markup, title = note.Title });
+}).RequireAuthorization();
+
 app.MapPost("/api/notes/import-markdown", async (HttpRequest request, HttpContext http, INoteMarkdownService markdown) =>
 {
     var file = request.Form.Files.FirstOrDefault();
