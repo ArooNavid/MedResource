@@ -73,6 +73,7 @@ public sealed class DatabaseMigrator
             case 8: Migration008_ObsidianSync(connection, transaction); break;
             case 9: Migration009_PinnedNotes(connection, transaction); break;
             case 10: Migration010_NoteTrash(connection, transaction); break;
+            case 11: Migration011_NoteAliases(connection, transaction); break;
             default: throw new InvalidOperationException($"No migration defined for version {version}.");
         }
     }
@@ -326,6 +327,21 @@ public sealed class DatabaseMigrator
         const string sql = """
             ALTER TABLE notes ADD COLUMN deleted_at TEXT;
             CREATE INDEX IF NOT EXISTS idx_notes_deleted_at ON notes(deleted_at);
+            """;
+
+        connection.Execute(sql, transaction: transaction);
+    }
+
+    private static void Migration011_NoteAliases(IDbConnection connection, IDbTransaction transaction)
+    {
+        const string sql = """
+            CREATE TABLE note_aliases (
+                note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+                alias     TEXT    NOT NULL COLLATE NOCASE,
+                PRIMARY KEY (note_id, alias)
+            ) STRICT;
+
+            CREATE UNIQUE INDEX idx_note_aliases_alias ON note_aliases(alias COLLATE NOCASE);
             """;
 
         connection.Execute(sql, transaction: transaction);

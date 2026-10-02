@@ -11,6 +11,7 @@ public sealed class NoteService : INoteService
     private readonly ISettingsService _settings;
     private readonly ITagService _tags;
     private readonly INoteLinkService _links;
+    private readonly IAliasService _aliases;
     private readonly IActivityStatsService _stats;
     private readonly VaultWriteGuard _guard;
 
@@ -19,6 +20,7 @@ public sealed class NoteService : INoteService
         ISettingsService settings,
         ITagService tags,
         INoteLinkService links,
+        IAliasService aliases,
         IActivityStatsService stats,
         VaultWriteGuard guard)
     {
@@ -26,6 +28,7 @@ public sealed class NoteService : INoteService
         _settings = settings;
         _tags = tags;
         _links = links;
+        _aliases = aliases;
         _stats = stats;
         _guard = guard;
     }
@@ -92,7 +95,7 @@ public sealed class NoteService : INoteService
         await _tags.SetTagsForNoteAsync((int)id, tagList, ct);
         await _links.RebuildLinksForNoteAsync((int)id, content ?? "", ct);
         await _links.ResolveLinksForTitleAsync(title, (int)id, ct);
-        WriteFile(rel, title, 1, tagList, content ?? "");
+        WriteFile(rel, title, 1, tagList, Array.Empty<string>(), content ?? "");
         await _stats.IncrementDailyCountAsync(ownerUserId, DailyCountType.NoteCreate, ct);
         return (await GetAsync(id, ct))!;
     }
@@ -103,6 +106,7 @@ public sealed class NoteService : INoteService
         string content,
         long? parentNoteId,
         IEnumerable<string> tags,
+        IEnumerable<string>? aliases = null,
         CancellationToken ct = default)
     {
         title = title.Trim();
@@ -140,10 +144,12 @@ public sealed class NoteService : INoteService
         }
 
         var tagList = tags.ToList();
+        var aliasList = (aliases ?? Array.Empty<string>()).ToList();
         await _tags.SetTagsForNoteAsync((int)id, tagList, ct);
+        await SaveAliasesAsync((int)id, aliasList, ct);
         await _links.RebuildLinksForNoteAsync((int)id, content ?? "", ct);
         await _links.ResolveLinksForTitleAsync(title, (int)id, ct);
-        WriteFile(rel, title, depth, tagList, content ?? "");
+        WriteFile(rel, title, depth, tagList, aliasList, content ?? "");
         await _stats.IncrementDailyCountAsync(ownerUserId, DailyCountType.NoteCreate, ct);
 
         return (await GetAsync(id, ct))!;
@@ -155,6 +161,7 @@ public sealed class NoteService : INoteService
         string title,
         string content,
         IEnumerable<string> tags,
+        IEnumerable<string>? aliases = null,
         CancellationToken ct = default)
     {
         var existing = await RequireActiveAsync(id, ct);
@@ -178,12 +185,17 @@ public sealed class NoteService : INoteService
         }
 
         var tagList = tags.ToList();
+        var aliasList = aliases is null
+            ? (await _aliases.GetAliasesForNoteAsync((int)id, ct)).ToList()
+            : aliases.ToList();
         await _tags.SetTagsForNoteAsync((int)id, tagList, ct);
+        if (aliases is not null)
+            await SaveAliasesAsync((int)id, aliasList, ct);
         if (!string.Equals(oldTitle, title, StringComparison.OrdinalIgnoreCase))
             await _links.NullifyLinksForOldTitleAsync(oldTitle, ct);
         await _links.RebuildLinksForNoteAsync((int)id, content ?? "", ct);
         await _links.ResolveLinksForTitleAsync(title, (int)id, ct);
-        WriteFile(existing.RelPath, title, existing.Depth, tagList, content ?? "");
+        WriteFile(existing.RelPath, title, existing.Depth, tagList, aliasList, content ?? "");
         return (await GetAsync(id, ct))!;
     }
 
@@ -313,7 +325,8 @@ public sealed class NoteService : INoteService
                 cancellationToken: ct));
 
         var tagNames = (await _tags.GetTagsForNoteAsync((int)id, ct)).Select(tag => tag.Name);
-        WriteFile(note.RelPath, note.Title, depth, tagNames, note.Content);
+        var aliasNames = await _aliases.GetAliasesForNoteAsync((int)id, ct);
+        WriteFile(note.RelPath, note.Title, depth, tagNames, aliasNames, note.Content);
         return (await GetAsync(id, ct))!;
     }
 
@@ -326,6 +339,7 @@ public sealed class NoteService : INoteService
             return note;
 
         var tagNames = (await _tags.GetTagsForNoteAsync((int)id, ct)).Select(tag => tag.Name);
+        var aliasNames = await _aliases.GetAliasesForNoteAsync((int)id, ct);
         var vault = _settings.Current.VaultPath;
         var oldFull = Path.Combine(vault, note.RelPath.Replace('/', Path.DirectorySeparatorChar));
         var newFull = Path.Combine(vault, newRel.Replace('/', Path.DirectorySeparatorChar));
@@ -336,7 +350,7 @@ public sealed class NoteService : INoteService
         if (File.Exists(oldFull))
             File.Move(oldFull, newFull, overwrite: false);
         else
-            WriteFile(newRel, note.Title, note.Depth, tagNames, note.Content);
+            WriteFile(newRel, note.Title, note.Depth, tagNames, aliasNames, note.Content);
 
         var now = DateTime.UtcNow.ToString("o");
         using var connection = _factory.Create();
@@ -347,7 +361,7 @@ public sealed class NoteService : INoteService
                 cancellationToken: ct));
 
         if (File.Exists(newFull))
-            WriteFile(newRel, note.Title, note.Depth, tagNames, note.Content);
+            WriteFile(newRel, note.Title, note.Depth, tagNames, aliasNames, note.Content);
 
         return (await GetAsync(id, ct))!;
     }
@@ -356,8 +370,16 @@ public sealed class NoteService : INoteService
     {
         var source = await RequireActiveAsync(id, ct);
         var tagNames = (await _tags.GetTagsForNoteAsync((int)source.Id, ct)).Select(tag => tag.Name);
+        var aliasNames = await _aliases.GetAliasesForNoteAsync((int)source.Id, ct);
         var copyTitle = await UniqueCopyTitleAsync(source.Title, ct);
-        return await CreateAsync(ownerUserId, copyTitle, source.Content, source.ParentNoteId, tagNames, ct);
+        return await CreateAsync(ownerUserId, copyTitle, source.Content, source.ParentNoteId, tagNames, aliasNames, ct);
+    }
+
+    private async Task SaveAliasesAsync(int noteId, IReadOnlyList<string> aliases, CancellationToken ct)
+    {
+        await _aliases.SetAliasesForNoteAsync(noteId, aliases, ct);
+        foreach (var alias in aliases)
+            await _links.ResolveLinksForTitleAsync(alias, noteId, ct);
     }
 
     private async Task<Note> RequireActiveAsync(long id, CancellationToken ct)
@@ -442,18 +464,19 @@ public sealed class NoteService : INoteService
         }
 
         await _tags.SetTagsForNoteAsync((int)existingId.Value, parsed.Tags, ct);
+        await SaveAliasesAsync((int)existingId.Value, parsed.Aliases.ToList(), ct);
         await _links.RebuildLinksForNoteAsync((int)existingId.Value, parsed.Body, ct);
         await _links.ResolveLinksForTitleAsync(title, (int)existingId.Value, ct);
     }
 
-    private void WriteFile(string relPath, string title, int depth, IEnumerable<string> tags, string body)
+    private void WriteFile(string relPath, string title, int depth, IEnumerable<string> tags, IEnumerable<string> aliases, string body)
     {
         var vault = _settings.Current.VaultPath;
         Directory.CreateDirectory(vault);
         var full = Path.Combine(vault, relPath.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(full)!);
         _guard.Suppress(full);
-        File.WriteAllText(full, MarkdownFiles.Compose(title, depth, tags, body));
+        File.WriteAllText(full, MarkdownFiles.Compose(title, depth, tags, body, aliases: aliases));
     }
 
     public async Task<string> AllocateRelPathAsync(string title, long? parentNoteId, CancellationToken ct = default)

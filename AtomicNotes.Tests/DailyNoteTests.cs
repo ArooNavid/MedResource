@@ -5,6 +5,8 @@ using AtomicNotes.Services;
 using AtomicNotes.Tests.Support;
 using Dapper;
 
+using AtomicNotes.Tests.Support;
+
 namespace AtomicNotes.Tests;
 
 public sealed class DailyNoteTests
@@ -36,10 +38,8 @@ public sealed class DailyNoteTests
             Salt = "y",
             Role = UserRole.User
         });
-        var tags = new TagService(database.Factory);
-        var links = new NoteLinkService(database.Factory);
-        var notes = new NoteService(database.Factory, settings, tags, links, database.Stats, new VaultWriteGuard());
-        var daily = new DailyNoteService(settings, database.Clock, notes, new TemplateService(settings, database.Clock, notes, new TagService(database.Factory), new VaultWriteGuard()));
+        var (notes, _, aliases, tags, guard) = NoteTestFactory.CreateBundle(database.Factory, settings, database.Stats);
+        var daily = new DailyNoteService(settings, database.Clock, notes, new TemplateService(settings, database.Clock, notes, tags, aliases, guard));
 
         var first = await daily.OpenAsync(owner, "2026-10-02");
         Assert.True(first.Created);
@@ -90,8 +90,8 @@ public sealed class DailyNoteTests
             Salt = "y",
             Role = UserRole.User
         });
-        var notes = new NoteService(database.Factory, settings, new TagService(database.Factory), new NoteLinkService(database.Factory), database.Stats, new VaultWriteGuard());
-        var daily = new DailyNoteService(settings, database.Clock, notes, new TemplateService(settings, database.Clock, notes, new TagService(database.Factory), new VaultWriteGuard()));
+        var (notes, _, aliases, tags, guard) = NoteTestFactory.CreateBundle(database.Factory, settings, database.Stats);
+        var daily = new DailyNoteService(settings, database.Clock, notes, new TemplateService(settings, database.Clock, notes, tags, aliases, guard));
 
         var path = Path.Combine(vault, "daily", "2026-09-01.md");
         await File.WriteAllTextAsync(path, """
@@ -120,8 +120,8 @@ public sealed class DailyNoteTests
         using var database = new ActivityDatabase();
         var settings = new SettingsService(Path.Combine(Path.GetTempPath(), "atomicnotes-daily-" + Guid.NewGuid().ToString("N") + ".json"));
         settings.Load();
-        var notes = new NoteService(database.Factory, settings, new TagService(database.Factory), new NoteLinkService(database.Factory), database.Stats, new VaultWriteGuard());
-        var daily = new DailyNoteService(settings, database.Clock, notes, new TemplateService(settings, database.Clock, notes, new TagService(database.Factory), new VaultWriteGuard()));
+        var (notes, _, aliases, tags, guard) = NoteTestFactory.CreateBundle(database.Factory, settings, database.Stats);
+        var daily = new DailyNoteService(settings, database.Clock, notes, new TemplateService(settings, database.Clock, notes, tags, aliases, guard));
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => daily.OpenAsync(1, "۱۴۰۵/۰۷/۱۰"));
         Assert.Equal("تاریخ یادداشت روزانه باید به شکل yyyy-MM-dd باشد.", error.Message);
     }
@@ -152,8 +152,8 @@ public sealed class DailyNoteTests
             Salt = "y",
             Role = UserRole.User
         });
-        var notes = new NoteService(database.Factory, settings, new TagService(database.Factory), new NoteLinkService(database.Factory), database.Stats, new VaultWriteGuard());
-        var daily = new DailyNoteService(settings, database.Clock, notes, new TemplateService(settings, database.Clock, notes, new TagService(database.Factory), new VaultWriteGuard()));
+        var (notes, _, aliases, tags, guard) = NoteTestFactory.CreateBundle(database.Factory, settings, database.Stats);
+        var daily = new DailyNoteService(settings, database.Clock, notes, new TemplateService(settings, database.Clock, notes, tags, aliases, guard));
 
         var opened = await daily.OpenAsync(owner);
         Assert.Equal(database.Clock.TehranDateString, opened.TehranDate);
@@ -187,8 +187,8 @@ public sealed class DailyNoteTests
             Salt = "y",
             Role = UserRole.User
         });
-        var notes = new NoteService(database.Factory, settings, new TagService(database.Factory), new NoteLinkService(database.Factory), database.Stats, new VaultWriteGuard());
-        var daily = new DailyNoteService(settings, database.Clock, notes, new TemplateService(settings, database.Clock, notes, new TagService(database.Factory), new VaultWriteGuard()));
+        var (notes, _, aliases, tags, guard) = NoteTestFactory.CreateBundle(database.Factory, settings, database.Stats);
+        var daily = new DailyNoteService(settings, database.Clock, notes, new TemplateService(settings, database.Clock, notes, tags, aliases, guard));
 
         await daily.OpenAsync(owner, "2026-10-02");
         Directory.CreateDirectory(Path.Combine(vault, "daily"));

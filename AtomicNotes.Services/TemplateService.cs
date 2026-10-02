@@ -15,6 +15,7 @@ public sealed class TemplateService : ITemplateService
     private readonly ITehranClockService _clock;
     private readonly NoteService _notes;
     private readonly ITagService _tags;
+    private readonly IAliasService _aliases;
     private readonly VaultWriteGuard _guard;
 
     public TemplateService(
@@ -22,12 +23,14 @@ public sealed class TemplateService : ITemplateService
         ITehranClockService clock,
         NoteService notes,
         ITagService tags,
+        IAliasService aliases,
         VaultWriteGuard guard)
     {
         _settings = settings;
         _clock = clock;
         _notes = notes;
         _tags = tags;
+        _aliases = aliases;
         _guard = guard;
     }
 
@@ -116,7 +119,8 @@ public sealed class TemplateService : ITemplateService
             .Where(tag => tag.Length > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        return await _notes.UpdateAsync(noteId, editorUserId, note.Title, content, tags, ct);
+        var aliases = await _aliases.GetAliasesForNoteAsync((int)noteId, ct);
+        return await _notes.UpdateAsync(noteId, editorUserId, note.Title, content, tags, aliases, ct);
     }
 
     private RenderedTemplate Render(NoteTemplate template, string title, DateTime day)

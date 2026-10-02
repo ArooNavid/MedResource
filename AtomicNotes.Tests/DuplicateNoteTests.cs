@@ -34,7 +34,7 @@ public sealed class DuplicateNoteTests
             Role = UserRole.User
         });
         var tags = new TagService(database.Factory);
-        var notes = new NoteService(database.Factory, settings, tags, new NoteLinkService(database.Factory), database.Stats, new VaultWriteGuard());
+        var notes = NoteTestFactory.Create(database.Factory, settings, database.Stats, tags);
 
         var source = await notes.CreateAsync(owner, "اصلی", "متن [[بتا]]", null, new[] { "ایده" });
         await notes.CreateAsync(owner, "بتا", "هدف", null, Array.Empty<string>());

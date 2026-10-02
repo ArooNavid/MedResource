@@ -4,6 +4,8 @@ using AtomicNotes.Services;
 using AtomicNotes.Tests.Support;
 using Dapper;
 
+using AtomicNotes.Tests.Support;
+
 namespace AtomicNotes.Tests;
 
 public sealed class ContentFeatureTests
@@ -49,7 +51,8 @@ public sealed class ContentFeatureTests
         var both = await tags.GetNoteIdsByTagsAsync(new[] { idea, draft });
         Assert.Equal(new[] { 1, 3 }, both.OrderBy(id => id).ToArray());
 
-        var links = new NoteLinkService(database.Factory);
+        var aliasLookup = new AliasService(database.Factory);
+        var links = new NoteLinkService(database.Factory, aliasLookup);
         await links.RebuildLinksForNoteAsync(2, "mentions [[Alpha]] and [[Missing Note]]");
         var outgoing = await links.GetOutgoingLinksAsync(2);
         Assert.Equal(2, outgoing.Count);
@@ -106,10 +109,7 @@ public sealed class ContentFeatureTests
             Role = UserRole.User
         });
 
-        var guard = new VaultWriteGuard();
-        var tags = new TagService(database.Factory);
-        var links = new NoteLinkService(database.Factory);
-        var notes = new NoteService(database.Factory, settings, tags, links, database.Stats, guard);
+        var notes = NoteTestFactory.Create(database.Factory, settings, database.Stats);
         Note? parent = null;
         for (var depth = 1; depth <= 15; depth++)
         {

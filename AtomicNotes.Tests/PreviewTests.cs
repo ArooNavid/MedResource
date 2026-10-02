@@ -3,6 +3,8 @@ using AtomicNotes.Data.Services;
 using AtomicNotes.Services;
 using AtomicNotes.Tests.Support;
 
+using AtomicNotes.Tests.Support;
+
 namespace AtomicNotes.Tests;
 
 public sealed class PreviewTests
@@ -33,9 +35,7 @@ public sealed class PreviewTests
             Salt = "y",
             Role = UserRole.User
         });
-        var tags = new TagService(database.Factory);
-        var links = new NoteLinkService(database.Factory);
-        var notes = new NoteService(database.Factory, settings, tags, links, database.Stats, new VaultWriteGuard());
+        var (notes, links, _, _, _) = NoteTestFactory.CreateBundle(database.Factory, settings, database.Stats);
         var preview = new MarkdownPreviewService(links);
 
         var target = await notes.CreateAsync(owner, "بتا", "هدف", null, Array.Empty<string>());

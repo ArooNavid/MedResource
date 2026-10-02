@@ -72,7 +72,8 @@ public sealed class TemplateTests
 
             متن
             """);
-        var sync = new ObsidianSyncService(database.Factory, settings, notes, new TagService(database.Factory), new VaultWriteGuard(), database.Clock);
+        var (_, _, aliases, tags, guard) = NoteTestFactory.CreateBundle(database.Factory, settings, database.Stats);
+        var sync = new ObsidianSyncService(database.Factory, settings, notes, tags, aliases, guard, database.Clock);
         var report = await sync.SyncAllAsync();
         Assert.Equal(1, report.Pulled);
         var listed = await notes.ListAsync();
@@ -107,9 +108,8 @@ public sealed class TemplateTests
             Theme = "System",
             NotificationsEnabled = true
         });
-        var tags = new TagService(database.Factory);
-        var notes = new NoteService(database.Factory, settings, tags, new NoteLinkService(database.Factory), database.Stats, new VaultWriteGuard());
-        var templates = new TemplateService(settings, database.Clock, notes, tags, new VaultWriteGuard());
+        var (notes, _, aliases, tags, guard) = NoteTestFactory.CreateBundle(database.Factory, settings, database.Stats);
+        var templates = new TemplateService(settings, database.Clock, notes, tags, aliases, guard);
         return Task.FromResult((settings, notes, templates));
     }
 }

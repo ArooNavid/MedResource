@@ -5,6 +5,8 @@ using AtomicNotes.Services;
 using AtomicNotes.Tests.Support;
 using Dapper;
 
+using AtomicNotes.Tests.Support;
+
 namespace AtomicNotes.Tests;
 
 public sealed class PinnedNoteTests
@@ -39,13 +41,7 @@ public sealed class PinnedNoteTests
             Salt = "y",
             Role = UserRole.User
         });
-        var notes = new NoteService(
-            database.Factory,
-            settings,
-            new TagService(database.Factory),
-            new NoteLinkService(database.Factory),
-            database.Stats,
-            new VaultWriteGuard());
+        var notes = NoteTestFactory.Create(database.Factory, settings, database.Stats);
 
         var older = await notes.CreateAsync(owner, "قدیمی", "a", null, Array.Empty<string>());
         var newer = await notes.CreateAsync(owner, "تازه", "b", null, Array.Empty<string>());

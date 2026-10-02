@@ -10,11 +10,13 @@ public sealed class TaskService : ITaskService
 {
     private readonly INoteService _notes;
     private readonly ITagService _tags;
+    private readonly IAliasService _aliases;
 
-    public TaskService(INoteService notes, ITagService tags)
+    public TaskService(INoteService notes, ITagService tags, IAliasService aliases)
     {
         _notes = notes;
         _tags = tags;
+        _aliases = aliases;
     }
 
     public async Task<TaskListSummary> ListAsync(bool? openOnly = null, CancellationToken ct = default)
@@ -47,6 +49,7 @@ public sealed class TaskService : ITaskService
         var note = await _notes.GetAsync(noteId, ct) ?? throw new InvalidOperationException("یادداشت پیدا نشد.");
         var content = MarkdownTasks.ToggleLine(note.Content, lineIndex, done);
         var tags = (await _tags.GetTagsForNoteAsync((int)noteId, ct)).Select(tag => tag.Name);
-        return await _notes.UpdateAsync(noteId, editorUserId, note.Title, content, tags, ct);
+        var aliases = await _aliases.GetAliasesForNoteAsync((int)noteId, ct);
+        return await _notes.UpdateAsync(noteId, editorUserId, note.Title, content, tags, aliases, ct);
     }
 }

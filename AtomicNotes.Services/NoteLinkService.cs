@@ -7,10 +7,12 @@ namespace AtomicNotes.Services;
 public sealed class NoteLinkService : INoteLinkService
 {
     private readonly IDbConnectionFactory _factory;
+    private readonly IAliasService _aliases;
 
-    public NoteLinkService(IDbConnectionFactory factory)
+    public NoteLinkService(IDbConnectionFactory factory, IAliasService aliases)
     {
         _factory = factory;
+        _aliases = aliases;
     }
 
     public async Task RebuildLinksForNoteAsync(int sourceNoteId, string markdownContent, CancellationToken ct = default)
@@ -29,12 +31,8 @@ public sealed class NoteLinkService : INoteLinkService
 
             foreach (var target in targets)
             {
-                var targetId = await connection.QuerySingleOrDefaultAsync<int?>(
-                    new CommandDefinition(
-                        "SELECT id FROM notes WHERE title = @Title COLLATE NOCASE LIMIT 1",
-                        new { Title = target },
-                        tx,
-                        cancellationToken: ct));
+                var resolved = await _aliases.ResolveNoteIdAsync(target, ct);
+                int? targetId = resolved is null ? null : (int)resolved.Value;
 
                 await connection.ExecuteAsync(
                     new CommandDefinition(

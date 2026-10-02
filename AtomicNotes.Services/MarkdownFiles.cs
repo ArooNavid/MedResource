@@ -23,8 +23,14 @@ public static class MarkdownFiles
         string body,
         string? sourcePdf = null,
         string? created = null,
-        string? updated = null)
+        string? updated = null,
+        IEnumerable<string>? aliases = null)
     {
+        var aliasList = (aliases ?? Array.Empty<string>())
+            .Select(alias => alias.Trim())
+            .Where(alias => alias.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         var front = new Dictionary<string, object?>
         {
             ["title"] = title,
@@ -33,6 +39,8 @@ public static class MarkdownFiles
             ["created"] = created ?? DateTime.UtcNow.ToString("yyyy-MM-dd"),
             ["updated"] = updated ?? DateTime.UtcNow.ToString("yyyy-MM-dd")
         };
+        if (aliasList.Count > 0)
+            front["aliases"] = aliasList;
         if (!string.IsNullOrWhiteSpace(sourcePdf))
             front["sourcePdf"] = sourcePdf;
 
@@ -51,11 +59,11 @@ public static class MarkdownFiles
     public static MarkdownDocument Parse(string markdown)
     {
         if (!markdown.StartsWith("---", StringComparison.Ordinal))
-            return new MarkdownDocument(string.Empty, 1, Array.Empty<string>(), markdown, null, null);
+            return new MarkdownDocument(string.Empty, 1, Array.Empty<string>(), Array.Empty<string>(), markdown, null, null);
 
         var end = markdown.IndexOf("\n---", 3, StringComparison.Ordinal);
         if (end < 0)
-            return new MarkdownDocument(string.Empty, 1, Array.Empty<string>(), markdown, null, null);
+            return new MarkdownDocument(string.Empty, 1, Array.Empty<string>(), Array.Empty<string>(), markdown, null, null);
 
         var yaml = markdown[4..end];
         var bodyStart = end + 4;
@@ -71,19 +79,20 @@ public static class MarkdownFiles
             if (map.TryGetValue("depth", out var rawDepth) && int.TryParse(rawDepth?.ToString(), out var parsed))
                 depth = Math.Clamp(parsed, 1, AppConstants.MaxTreeDepth);
             var tags = ReadTags(map);
+            var aliases = ReadTags(map, "aliases");
             var created = map.TryGetValue("created", out var rawCreated) ? rawCreated?.ToString() : null;
             var updated = map.TryGetValue("updated", out var rawUpdated) ? rawUpdated?.ToString() : null;
-            return new MarkdownDocument(title, depth, tags, body, created, updated);
+            return new MarkdownDocument(title, depth, tags, aliases, body, created, updated);
         }
         catch
         {
-            return new MarkdownDocument(string.Empty, 1, Array.Empty<string>(), body, null, null);
+            return new MarkdownDocument(string.Empty, 1, Array.Empty<string>(), Array.Empty<string>(), body, null, null);
         }
     }
 
-    private static List<string> ReadTags(Dictionary<string, object> map)
+    private static List<string> ReadTags(Dictionary<string, object> map, string key = "tags")
     {
-        if (!map.TryGetValue("tags", out var rawTags) || rawTags is null)
+        if (!map.TryGetValue(key, out var rawTags) || rawTags is null)
             return new List<string>();
         if (rawTags is string single)
             return single.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
@@ -93,12 +102,13 @@ public static class MarkdownFiles
     }
 
     public sealed record MarkdownDocument(
-    string Title,
-    int Depth,
-    IReadOnlyList<string> Tags,
-    string Body,
-    string? Created,
-    string? Updated);
+        string Title,
+        int Depth,
+        IReadOnlyList<string> Tags,
+        IReadOnlyList<string> Aliases,
+        string Body,
+        string? Created,
+        string? Updated);
 
     public static string SanitizeFileName(string title)
     {

@@ -17,6 +17,7 @@ public sealed class ObsidianSyncService : IObsidianSyncService
     private readonly ISettingsService _settings;
     private readonly NoteService _notes;
     private readonly ITagService _tags;
+    private readonly IAliasService _aliases;
     private readonly VaultWriteGuard _guard;
     private readonly ITehranClockService _clock;
 
@@ -25,6 +26,7 @@ public sealed class ObsidianSyncService : IObsidianSyncService
         ISettingsService settings,
         NoteService notes,
         ITagService tags,
+        IAliasService aliases,
         VaultWriteGuard guard,
         ITehranClockService clock)
     {
@@ -32,6 +34,7 @@ public sealed class ObsidianSyncService : IObsidianSyncService
         _settings = settings;
         _notes = notes;
         _tags = tags;
+        _aliases = aliases;
         _guard = guard;
         _clock = clock;
     }
@@ -61,8 +64,9 @@ public sealed class ObsidianSyncService : IObsidianSyncService
             seen.Add(note.RelPath);
             files.TryGetValue(note.RelPath, out var fullPath);
             var tags = tagsByNote.TryGetValue(note.Id, out var names) ? names : Array.Empty<string>();
+            var aliases = (await _aliases.GetAliasesForNoteAsync((int)note.Id, ct)).ToArray();
             syncRows.TryGetValue(note.Id, out var state);
-            var outcome = await ReconcileAsync(note, tags, state, fullPath, messages, ct);
+            var outcome = await ReconcileAsync(note, tags, aliases, state, fullPath, messages, ct);
             switch (outcome)
             {
                 case SyncAction.Pull: pulled++; break;
@@ -82,7 +86,8 @@ public sealed class ObsidianSyncService : IObsidianSyncService
             await _notes.UpsertFromFileAsync(full, ct);
             var created = (await _notes.ListAsync(ct)).First(item => string.Equals(item.RelPath, rel, StringComparison.OrdinalIgnoreCase));
             var createdTags = (await _tags.GetTagsForNoteAsync((int)created.Id, ct)).Select(tag => tag.Name).ToArray();
-            await SaveSyncAsync(created.Id, HashFile(full), ProjectionHash(created, createdTags), ct);
+            var createdAliases = (await _aliases.GetAliasesForNoteAsync((int)created.Id, ct)).ToArray();
+            await SaveSyncAsync(created.Id, HashFile(full), ProjectionHash(created, createdTags, createdAliases), ct);
             pulled++;
             messages.Add($"از فایل خوانده شد: {created.Title}");
         }
@@ -101,7 +106,8 @@ public sealed class ObsidianSyncService : IObsidianSyncService
         if (note is null)
             return;
         var tags = (await _tags.GetTagsForNoteAsync((int)note.Id, ct)).Select(tag => tag.Name).ToArray();
-        await SaveSyncAsync(note.Id, HashFile(fullPath), ProjectionHash(note, tags), ct);
+        var aliases = (await _aliases.GetAliasesForNoteAsync((int)note.Id, ct)).ToArray();
+        await SaveSyncAsync(note.Id, HashFile(fullPath), ProjectionHash(note, tags, aliases), ct);
     }
 
     public async Task OnFileMissingAsync(string fullPath, CancellationToken ct = default)
@@ -113,20 +119,22 @@ public sealed class ObsidianSyncService : IObsidianSyncService
         if (note is null)
             return;
         var tags = (await _tags.GetTagsForNoteAsync((int)note.Id, ct)).Select(tag => tag.Name).ToArray();
+        var aliases = (await _aliases.GetAliasesForNoteAsync((int)note.Id, ct)).ToArray();
         var syncRows = await LoadSyncAsync(ct);
         syncRows.TryGetValue(note.Id, out var state);
-        await ReconcileAsync(note, tags, state, fullPath: null, new List<string>(), ct);
+        await ReconcileAsync(note, tags, aliases, state, fullPath: null, new List<string>(), ct);
     }
 
     private async Task<SyncAction> ReconcileAsync(
         Note note,
         IReadOnlyList<string> tags,
+        IReadOnlyList<string> aliases,
         SyncState? state,
         string? fullPath,
         List<string> messages,
         CancellationToken ct)
     {
-        var dbHash = ProjectionHash(note, tags);
+        var dbHash = ProjectionHash(note, tags, aliases);
         var fileExists = fullPath is not null && File.Exists(fullPath);
         if (!fileExists)
         {
@@ -137,7 +145,7 @@ public sealed class ObsidianSyncService : IObsidianSyncService
                 return SyncAction.Delete;
             }
 
-            WriteNoteFile(note, tags);
+            WriteNoteFile(note, tags, aliases);
             await SaveSyncAsync(note.Id, HashFile(FullPath(note.RelPath)), dbHash, ct);
             messages.Add($"در خزانه نوشته شد: {note.Title}");
             return SyncAction.Push;
@@ -145,7 +153,7 @@ public sealed class ObsidianSyncService : IObsidianSyncService
 
         var fileHash = HashFile(fullPath!);
         var parsed = MarkdownFiles.Parse(await File.ReadAllTextAsync(fullPath!, ct));
-        var fileChanged = state is null ? !SameContent(note, tags, parsed) : state.FileHash != fileHash;
+        var fileChanged = state is null ? !SameContent(note, tags, aliases, parsed) : state.FileHash != fileHash;
         var dbChanged = state is not null && state.DbHash != dbHash;
 
         if (state is null && !fileChanged)
@@ -163,12 +171,13 @@ public sealed class ObsidianSyncService : IObsidianSyncService
                 await _notes.UpsertFromFileAsync(fullPath!, ct);
                 var refreshed = (await _notes.GetAsync(note.Id, ct))!;
                 var refreshedTags = (await _tags.GetTagsForNoteAsync((int)note.Id, ct)).Select(tag => tag.Name).ToArray();
-                await SaveSyncAsync(note.Id, HashFile(fullPath!), ProjectionHash(refreshed, refreshedTags), ct);
+                var refreshedAliases = (await _aliases.GetAliasesForNoteAsync((int)note.Id, ct)).ToArray();
+                await SaveSyncAsync(note.Id, HashFile(fullPath!), ProjectionHash(refreshed, refreshedTags, refreshedAliases), ct);
                 messages.Add($"تعارض در «{note.Title}»: نسخهٔ جدیدتر فایل اعمال شد.");
                 return SyncAction.ConflictPull;
             }
 
-            WriteNoteFile(note, tags);
+            WriteNoteFile(note, tags, aliases);
             await SaveSyncAsync(note.Id, HashFile(fullPath!), dbHash, ct);
             messages.Add($"تعارض در «{note.Title}»: نسخهٔ جدیدتر پایگاه‌داده در فایل نوشته شد.");
             return SyncAction.ConflictPush;
@@ -179,14 +188,15 @@ public sealed class ObsidianSyncService : IObsidianSyncService
             await _notes.UpsertFromFileAsync(fullPath!, ct);
             var refreshed = (await _notes.GetAsync(note.Id, ct))!;
             var refreshedTags = (await _tags.GetTagsForNoteAsync((int)note.Id, ct)).Select(tag => tag.Name).ToArray();
-            await SaveSyncAsync(note.Id, HashFile(fullPath!), ProjectionHash(refreshed, refreshedTags), ct);
+            var refreshedAliases = (await _aliases.GetAliasesForNoteAsync((int)note.Id, ct)).ToArray();
+            await SaveSyncAsync(note.Id, HashFile(fullPath!), ProjectionHash(refreshed, refreshedTags, refreshedAliases), ct);
             messages.Add($"از فایل به‌روز شد: {refreshed.Title}");
             return SyncAction.Pull;
         }
 
         if (dbChanged)
         {
-            WriteNoteFile(note, tags);
+            WriteNoteFile(note, tags, aliases);
             await SaveSyncAsync(note.Id, HashFile(fullPath!), dbHash, ct);
             messages.Add($"فایل خزانه به‌روز شد: {note.Title}");
             return SyncAction.Push;
@@ -195,13 +205,13 @@ public sealed class ObsidianSyncService : IObsidianSyncService
         return SyncAction.None;
     }
 
-    private void WriteNoteFile(Note note, IReadOnlyList<string> tags)
+    private void WriteNoteFile(Note note, IReadOnlyList<string> tags, IReadOnlyList<string> aliases)
     {
         var full = FullPath(note.RelPath);
         Directory.CreateDirectory(Path.GetDirectoryName(full)!);
         var created = TehranDay(note.CreatedAt);
         var updated = TehranDay(note.UpdatedAt);
-        var markdown = MarkdownFiles.Compose(note.Title, note.Depth, tags, note.Content, created: created, updated: updated);
+        var markdown = MarkdownFiles.Compose(note.Title, note.Depth, tags, note.Content, created: created, updated: updated, aliases: aliases);
         _guard.Suppress(full);
         File.WriteAllText(full, markdown);
     }
@@ -284,18 +294,23 @@ public sealed class ObsidianSyncService : IObsidianSyncService
                 cancellationToken: ct));
     }
 
-    private static string ProjectionHash(Note note, IEnumerable<string> tags)
+    private static string ProjectionHash(Note note, IEnumerable<string> tags, IEnumerable<string> aliases)
     {
         var tagList = tags
             .Select(tag => tag.Trim())
             .Where(tag => tag.Length > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase);
-        var projection = string.Join('\u001f', note.Title, note.Depth, string.Join(',', tagList), note.Content.Replace("\r\n", "\n").TrimEnd());
+        var aliasList = aliases
+            .Select(alias => alias.Trim())
+            .Where(alias => alias.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(alias => alias, StringComparer.OrdinalIgnoreCase);
+        var projection = string.Join('\u001f', note.Title, note.Depth, string.Join(',', tagList), string.Join(',', aliasList), note.Content.Replace("\r\n", "\n").TrimEnd());
         return HashText(projection);
     }
 
-    private static bool SameContent(Note note, IReadOnlyList<string> tags, MarkdownFiles.MarkdownDocument parsed)
+    private static bool SameContent(Note note, IReadOnlyList<string> tags, IReadOnlyList<string> aliases, MarkdownFiles.MarkdownDocument parsed)
     {
         var title = string.IsNullOrWhiteSpace(parsed.Title) ? note.Title : parsed.Title;
         var fileTags = parsed.Tags
@@ -308,9 +323,20 @@ public sealed class ObsidianSyncService : IObsidianSyncService
             .Where(tag => tag.Length > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase);
+        var fileAliases = parsed.Aliases
+            .Select(alias => alias.Trim())
+            .Where(alias => alias.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(alias => alias, StringComparer.OrdinalIgnoreCase);
+        var dbAliases = aliases
+            .Select(alias => alias.Trim())
+            .Where(alias => alias.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(alias => alias, StringComparer.OrdinalIgnoreCase);
         return string.Equals(note.Title, title, StringComparison.Ordinal)
                && string.Equals(note.Content.Replace("\r\n", "\n").TrimEnd(), parsed.Body.Replace("\r\n", "\n").TrimEnd(), StringComparison.Ordinal)
-               && fileTags.SequenceEqual(dbTags, StringComparer.OrdinalIgnoreCase);
+               && fileTags.SequenceEqual(dbTags, StringComparer.OrdinalIgnoreCase)
+               && fileAliases.SequenceEqual(dbAliases, StringComparer.OrdinalIgnoreCase);
     }
 
     private static string HashFile(string path) => HashText(File.ReadAllText(path).Replace("\r\n", "\n"));

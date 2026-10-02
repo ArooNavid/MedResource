@@ -34,7 +34,7 @@ public sealed class MarkdownExchangeTests
             Role = UserRole.User
         });
         var tags = new TagService(database.Factory);
-        var notes = new NoteService(database.Factory, settings, tags, new NoteLinkService(database.Factory), database.Stats, new VaultWriteGuard());
+        var notes = NoteTestFactory.Create(database.Factory, settings, database.Stats, tags);
         var exchange = new NoteMarkdownService(notes, tags, database.Clock, notes);
 
         var note = await notes.CreateAsync(owner, "خروجی", "متن **بولد**", null, new[] { "ایده" });
