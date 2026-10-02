@@ -1069,8 +1069,24 @@ function renderImport() {
 }
 
 async function loadBackups() {
-  const backups = await api("/api/backups");
+  const [backups, vaultStats] = await Promise.all([api("/api/backups"), api("/api/vault/stats")]);
   $("view-backups").innerHTML = `
+    <div class="card" style="margin-bottom:16px">
+      <h3>آمار خزانه</h3>
+      <p class="muted" style="margin:8px 0 14px">شمارش یادداشت‌ها، پیوندها، برچسب‌ها و فایل‌های .md روی دیسک.</p>
+      <div class="grid stats">
+        <article class="card"><span>یادداشت فعال</span><strong>${vaultStats.activeNotes ?? 0}</strong></article>
+        <article class="card"><span>سطل زباله</span><strong>${vaultStats.trashedNotes ?? 0}</strong></article>
+        <article class="card"><span>سنجاق</span><strong>${vaultStats.pinnedNotes ?? 0}</strong></article>
+        <article class="card"><span>پیوند</span><strong>${vaultStats.totalLinks ?? 0}</strong></article>
+        <article class="card"><span>پیوند شکسته</span><strong>${vaultStats.unresolvedLinks ?? 0}</strong></article>
+        <article class="card"><span>برچسب</span><strong>${vaultStats.tags ?? 0}</strong></article>
+        <article class="card"><span>نام مستعار</span><strong>${vaultStats.aliases ?? 0}</strong></article>
+        <article class="card"><span>قالب</span><strong>${vaultStats.templates ?? 0}</strong></article>
+        <article class="card"><span>فایل .md</span><strong>${vaultStats.markdownFilesOnDisk ?? 0}</strong></article>
+        <article class="card"><span>کل کلمات</span><strong>${vaultStats.totalWords ?? 0}</strong></article>
+      </div>
+    </div>
     <div class="card" style="margin-bottom:16px">
       <h3>خروجی مارک‌داون</h3>
       <p class="muted">همهٔ فایل‌های .md خزانه (به‌جز پوشهٔ staging) در یک فایل zip.</p>

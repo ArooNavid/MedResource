@@ -133,3 +133,8 @@ public interface IVaultImportService
 {
     Task<VaultImportResult> ImportMarkdownZipAsync(Stream zipStream, CancellationToken ct = default);
 }
+
+public interface IVaultStatsService
+{
+    Task<VaultStats> GetAsync(CancellationToken ct = default);
+}
