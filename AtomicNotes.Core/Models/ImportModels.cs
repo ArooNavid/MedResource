@@ -20,6 +20,8 @@ public sealed class ImportOperation
     public string? ErrorMessage { get; set; }
 }
 
+public sealed record DailyNoteResult(Note Note, bool Created, string TehranDate, string RelPath);
+
 public sealed record SyncReport(
     DateTime SyncedAtUtc,
     int Pulled,

@@ -29,4 +29,9 @@ public static class AppConstants
 
     public const int MinBackupIntervalHours = 1;
     public const int MaxBackupIntervalHours = 168;
+
+    /// <summary>Stage 22. One markdown file per Tehran day lives under this vault folder.</summary>
+    public const string DailyNotesFolder = "daily";
+
+    public const string DailyNoteTag = "روزانه";
 }

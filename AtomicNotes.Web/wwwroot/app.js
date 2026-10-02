@@ -645,6 +645,16 @@ $("auth-form").onsubmit = async (event) => {
 document.querySelectorAll(".side nav button").forEach((button) => {
   button.onclick = () => openView(button.dataset.view);
 });
+$("open-daily").onclick = async () => {
+  try {
+    const result = await api("/api/daily", { method: "POST", body: {} });
+    toast(result.created ? "یادداشت امروز ساخته شد." : "یادداشت امروز باز شد.");
+    await openNote(result.note.id);
+  } catch (error) {
+    toast(error.message);
+  }
+};
+
 $("logout").onclick = async () => {
   await api("/api/auth/logout", { method: "POST" });
   state.user = null;

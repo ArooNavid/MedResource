@@ -43,6 +43,7 @@ builder.Services.AddSingleton<IBackupService, BackupService>();
 builder.Services.AddSingleton<IBackupSchedulerService, BackupSchedulerService>();
 builder.Services.AddSingleton<AuthService>();
 builder.Services.AddSingleton<IObsidianSyncService, ObsidianSyncService>();
+builder.Services.AddSingleton<IDailyNoteService, DailyNoteService>();
 builder.Services.AddSingleton<VaultWatcherService>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -205,6 +206,19 @@ app.MapPut("/api/notes/{id:long}", async (long id, NoteBody body, HttpContext ht
     {
         var note = await notes.UpdateAsync(id, UserId(http.User), body.Title ?? "", body.Content ?? "", body.Tags ?? Array.Empty<string>());
         return Results.Ok(note);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
+app.MapPost("/api/daily", async (DailyRequest? body, HttpContext http, IDailyNoteService daily) =>
+{
+    try
+    {
+        var result = await daily.OpenAsync(UserId(http.User), body?.Date);
+        return Results.Ok(result);
     }
     catch (InvalidOperationException ex)
     {
@@ -383,6 +397,8 @@ static async Task SignIn(HttpContext http, AtomicNotes.Core.Models.User user)
 internal sealed record RegisterBody(string? Username, string? Password, string? DisplayName);
 internal sealed record LoginBody(string? Username, string? Password);
 internal sealed record NoteBody(string? Title, string? Content, long? ParentNoteId, string[]? Tags);
+
+internal sealed record DailyRequest(string? Date);
 internal sealed record ColorBody(string? ColorHex);
 internal sealed record SettingsBody(string? VaultPath, string? BackupPath, int BackupIntervalHours, string? Theme, bool NotificationsEnabled);
 internal sealed record RestoreBody(string? FilePath);

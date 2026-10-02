@@ -53,6 +53,53 @@ public sealed class NoteService : INoteService
             new CommandDefinition(SelectOne + " WHERE id = @Id", new { Id = id }, cancellationToken: ct));
     }
 
+    public async Task<Note?> FindByRelPathAsync(string relPath, CancellationToken ct = default)
+    {
+        using var connection = _factory.Create();
+        return await connection.QuerySingleOrDefaultAsync<Note>(
+            new CommandDefinition(SelectOne + " WHERE rel_path = @Rel", new { Rel = NormalizeRel(relPath) }, cancellationToken: ct));
+    }
+
+    public async Task<Note> CreateAtPathAsync(
+        long ownerUserId,
+        string title,
+        string content,
+        string relPath,
+        IEnumerable<string> tags,
+        CancellationToken ct = default)
+    {
+        title = title.Trim();
+        if (title.Length == 0)
+            throw new InvalidOperationException("عنوان یادداشت نمی‌تواند خالی باشد.");
+
+        var rel = NormalizeRel(relPath);
+        if (await FindByRelPathAsync(rel, ct) is not null)
+            throw new InvalidOperationException("این مسیر در خزانه وجود دارد.");
+
+        var now = DateTime.UtcNow.ToString("o");
+        long id;
+        using (var connection = _factory.Create())
+        {
+            id = await connection.ExecuteScalarAsync<long>(
+                new CommandDefinition(
+                    """
+                    INSERT INTO notes (title, content, rel_path, depth, owner_user_id, created_at, updated_at)
+                    VALUES (@Title, @Content, @Rel, 1, @Owner, @Now, @Now);
+                    SELECT last_insert_rowid();
+                    """,
+                    new { Title = title, Content = content ?? "", Rel = rel, Owner = ownerUserId, Now = now },
+                    cancellationToken: ct));
+        }
+
+        var tagList = tags.ToList();
+        await _tags.SetTagsForNoteAsync((int)id, tagList, ct);
+        await _links.RebuildLinksForNoteAsync((int)id, content ?? "", ct);
+        await _links.ResolveLinksForTitleAsync(title, (int)id, ct);
+        WriteFile(rel, title, 1, tagList, content ?? "");
+        await _stats.IncrementDailyCountAsync(ownerUserId, DailyCountType.NoteCreate, ct);
+        return (await GetAsync(id, ct))!;
+    }
+
     public async Task<Note> CreateAsync(
         long ownerUserId,
         string title,
@@ -256,6 +303,18 @@ public sealed class NoteService : INoteService
         }
 
         return candidate;
+    }
+
+    private static string NormalizeRel(string relPath)
+    {
+        var rel = (relPath ?? "").Replace('\\', '/').Trim().TrimStart('/');
+        if (rel.Length == 0
+            || rel.Contains("..", StringComparison.Ordinal)
+            || rel.Contains(':', StringComparison.Ordinal)
+            || !rel.EndsWith(AppConstants.MarkdownExtension, StringComparison.OrdinalIgnoreCase)
+            || rel.StartsWith(".staging/", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("مسیر یادداشت معتبر نیست.");
+        return rel;
     }
 
     private const string SelectOne = """

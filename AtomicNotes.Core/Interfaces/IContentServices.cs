@@ -55,6 +55,15 @@ public interface IPdfImportService
     Task RecoverStagedAsync(CancellationToken ct = default);
 }
 
+public interface IDailyNoteService
+{
+    /// <summary>
+    /// Opens the daily note for a Tehran date. A missing date means today.
+    /// The same path is never created twice and an existing file is left as it is.
+    /// </summary>
+    Task<DailyNoteResult> OpenAsync(long ownerUserId, string? tehranDate = null, CancellationToken ct = default);
+}
+
 public interface IObsidianSyncService
 {
     SyncReport? LastReport { get; }
