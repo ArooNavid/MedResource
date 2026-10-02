@@ -211,6 +211,7 @@ function renderNotes() {
             ${(state.templates || []).map((template) => `<option value="${escapeHtml(template.name)}">${escapeHtml(template.title)}</option>`).join("")}
           </select>
           <button class="ghost" type="button" id="apply-template" ${state.current?.note?.id ? "" : "disabled"}>درج قالب</button>
+          <button class="ghost" type="button" id="duplicate-note" ${state.current?.note?.id ? "" : "disabled"}>رونوشت</button>
           <button class="ghost" type="button" id="toggle-pin" ${state.current?.note?.id ? "" : "disabled"}>${state.current?.note?.pinned ? "برداشتن سنجاق" : "سنجاق"}</button>
           <button class="ghost" type="button" id="toggle-preview" ${state.current ? "" : "disabled"}>${state.showPreview ? "ویرایش" : "پیش‌نمایش"}</button>
           <button class="ghost" type="button" id="export-md" ${state.current?.note?.id ? "" : "disabled"}>فایل .md</button>
@@ -234,6 +235,17 @@ function renderNotes() {
   $("view-notes").querySelectorAll("[data-id]").forEach((button) => { button.onclick = () => openNote(button.dataset.id); });
   $("editor").onsubmit = saveNote;
   $("apply-template").onclick = applyTemplate;
+  $("duplicate-note").onclick = async () => {
+    if (!state.current?.note?.id) return;
+    try {
+      const copy = await api(`/api/notes/${state.current.note.id}/duplicate`, { method: "POST" });
+      toast("رونوشت ساخته شد.");
+      await loadNotes();
+      await openNote(copy.id);
+    } catch (error) {
+      toast(error.message);
+    }
+  };
   $("toggle-pin").onclick = async () => {
     if (!state.current?.note?.id) return;
     const pinned = !state.current.note.pinned;

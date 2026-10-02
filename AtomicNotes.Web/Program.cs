@@ -206,6 +206,18 @@ app.MapPost("/api/notes", async (NoteBody body, HttpContext http, INoteService n
     }
 }).RequireAuthorization();
 
+app.MapPost("/api/notes/{id:long}/duplicate", async (long id, HttpContext http, INoteService notes) =>
+{
+    try
+    {
+        return Results.Ok(await notes.DuplicateAsync(id, UserId(http.User)));
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+}).RequireAuthorization();
+
 app.MapPut("/api/notes/{id:long}/pin", async (long id, PinBody body, INoteService notes) =>
 {
     try

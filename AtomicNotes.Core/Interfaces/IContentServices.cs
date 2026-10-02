@@ -49,6 +49,7 @@ public interface INoteService
     Task<IReadOnlyList<Note>> RecentAsync(int limit, CancellationToken ct = default);
     Task<IReadOnlyList<Note>> ListPinnedAsync(CancellationToken ct = default);
     Task<Note> SetPinnedAsync(long id, bool pinned, CancellationToken ct = default);
+    Task<Note> DuplicateAsync(long id, long ownerUserId, CancellationToken ct = default);
 }
 
 public interface IPdfImportService
