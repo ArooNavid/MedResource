@@ -22,7 +22,7 @@ public sealed class TaskService : ITaskService
     public async Task<TaskListSummary> ListAsync(bool? openOnly = null, CancellationToken ct = default)
     {
         var allItems = new List<NoteTaskItem>();
-        foreach (var note in await _notes.ListAsync(ct))
+        foreach (var note in await _notes.ListAsync(ct: ct))
         {
             foreach (var task in MarkdownTasks.Parse(note.Content))
                 allItems.Add(new NoteTaskItem(note.Id, note.Title, task.LineIndex, task.Text, task.IsDone));

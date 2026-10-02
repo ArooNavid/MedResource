@@ -72,7 +72,7 @@ public sealed class DailyNoteService : IDailyNoteService
         var first = new DateTime(year, month, 1);
         var daysInMonth = DateTime.DaysInMonth(year, month);
         var prefix = $"{AppConstants.DailyNotesFolder}/{year:D4}-{month:D2}-";
-        var notes = (await _notes.ListAsync(ct))
+        var notes = (await _notes.ListAsync(ct: ct))
             .Where(note => note.RelPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             .ToDictionary(
                 note => Path.GetFileNameWithoutExtension(note.RelPath.Replace('\\', '/')),
