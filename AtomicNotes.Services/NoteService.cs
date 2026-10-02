@@ -416,6 +416,67 @@ public sealed class NoteService : INoteService
         return await CreateAsync(ownerUserId, copyTitle, source.Content, source.ParentNoteId, tagNames, aliasNames, ct);
     }
 
+    public async Task<Note> MergeAsync(long targetId, long sourceId, long editorUserId, CancellationToken ct = default)
+    {
+        if (targetId == sourceId)
+            throw new InvalidOperationException("نمی‌توان یادداشت را با خودش ادغام کرد.");
+
+        var target = await RequireActiveAsync(targetId, ct);
+        var source = await RequireActiveAsync(sourceId, ct);
+
+        var body = (source.Content ?? "").Trim();
+        var mergedContent = string.IsNullOrWhiteSpace(target.Content)
+            ? body.Length == 0 ? "" : $"## {source.Title}\n\n{body}"
+            : body.Length == 0
+                ? target.Content.TrimEnd()
+                : $"{target.Content.TrimEnd()}\n\n---\n\n## {source.Title}\n\n{body}";
+
+        var tags = (await _tags.GetTagsForNoteAsync((int)targetId, ct)).Select(tag => tag.Name)
+            .Concat((await _tags.GetTagsForNoteAsync((int)sourceId, ct)).Select(tag => tag.Name))
+            .Select(tag => tag.Trim())
+            .Where(tag => tag.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        var sourceAliasNames = await _aliases.GetAliasesForNoteAsync((int)sourceId, ct);
+        var mergedAliases = await MergeAliasListsAsync((int)targetId, target.Title, source, sourceAliasNames, ct);
+        var updated = await UpdateAsync(targetId, editorUserId, target.Title, mergedContent, tags, mergedAliases, ct);
+
+        await _links.RemapTargetNoteAsync((int)sourceId, (int)targetId, ct);
+        await _links.ResolveLinksForTitleAsync(source.Title, (int)targetId, ct);
+        foreach (var alias in sourceAliasNames)
+            await _links.ResolveLinksForTitleAsync(alias, (int)targetId, ct);
+
+        await DeleteAsync(sourceId, ct);
+        return updated;
+    }
+
+    private async Task<IReadOnlyList<string>> MergeAliasListsAsync(
+        int targetId,
+        string targetTitle,
+        Note source,
+        IReadOnlyList<string> sourceAliasNames,
+        CancellationToken ct)
+    {
+        var result = (await _aliases.GetAliasesForNoteAsync(targetId, ct)).ToList();
+        var candidates = sourceAliasNames
+            .Append(source.Title)
+            .Select(alias => alias.Trim())
+            .Where(alias => alias.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(alias => !string.Equals(alias, targetTitle, StringComparison.OrdinalIgnoreCase));
+
+        foreach (var alias in candidates)
+        {
+            if (result.Contains(alias, StringComparer.OrdinalIgnoreCase))
+                continue;
+            var owner = await _aliases.ResolveNoteIdAsync(alias, ct);
+            if (owner is null || owner == targetId)
+                result.Add(alias);
+        }
+
+        return result;
+    }
+
     private async Task SaveAliasesAsync(int noteId, IReadOnlyList<string> aliases, CancellationToken ct)
     {
         await _aliases.SetAliasesForNoteAsync(noteId, aliases, ct);

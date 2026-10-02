@@ -91,6 +91,20 @@ public sealed class NoteLinkService : INoteLinkService
                 cancellationToken: ct));
     }
 
+    public async Task RemapTargetNoteAsync(int oldTargetNoteId, int newTargetNoteId, CancellationToken ct = default)
+    {
+        using var connection = _factory.Create();
+        await connection.ExecuteAsync(
+            new CommandDefinition(
+                """
+                UPDATE note_links
+                   SET target_note_id = @NewId
+                 WHERE target_note_id = @OldId
+                """,
+                new { OldId = oldTargetNoteId, NewId = newTargetNoteId },
+                cancellationToken: ct));
+    }
+
     public async Task NullifyLinksForOldTitleAsync(string oldTitle, CancellationToken ct = default)
     {
         using var connection = _factory.Create();
